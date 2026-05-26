@@ -5,6 +5,14 @@ on:
     tags:
       - "*"
 
+# Needed so GITHUB_TOKEN can create releases
+permissions:
+  contents: write
+
+env:
+  # Opt into Node.js 24 to silence deprecation warnings
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   build:
     runs-on: ubuntu-latest
