@@ -1,9 +1,9 @@
 {
-  "id": "todo-list-board",
-  "name": "Todo List Board",
+  "id": "agent-board",
+  "name": "AgentBoard",
   "version": "1.0.0",
   "minAppVersion": "0.15.0",
-  "description": "Manage your to-do list as a themed board. Works with Markdown files that can also be updated by AI agents.",
+  "description": "A visual board synced with a Markdown todo file. Edit tasks on the board or via AI agents — changes reflect instantly on both sides.",
   "author": "Aniruddh Jammoria",
   "authorUrl": "",
   "isDesktopOnly": false

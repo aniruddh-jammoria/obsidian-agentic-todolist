@@ -10,7 +10,7 @@ import {
 	WorkspaceLeaf,
 } from "obsidian";
 
-const VIEW_TYPE_TODO_BOARD = "todo-board-view";
+const VIEW_TYPE_AGENT_BOARD = "agent-board-view";
 
 interface TodoTask {
 	text: string;      // clean text, (Critical) stripped
@@ -27,45 +27,45 @@ interface TodoTheme {
 	tasks: TodoTask[];
 }
 
-interface TodoBoardSettings {
+interface AgentBoardSettings {
 	todoFilePath: string;
 	columnOrder: string[];
 }
 
-const DEFAULT_SETTINGS: TodoBoardSettings = {
+const DEFAULT_SETTINGS: AgentBoardSettings = {
 	todoFilePath: "todo.md",
 	columnOrder: [],
 };
 
-export default class TodoBoardPlugin extends Plugin {
-	settings!: TodoBoardSettings;
+export default class AgentBoardPlugin extends Plugin {
+	settings!: AgentBoardSettings;
 
 	async onload() {
 		await this.loadSettings();
 
 		this.registerView(
-			VIEW_TYPE_TODO_BOARD,
-			(leaf) => new TodoBoardView(leaf, this)
+			VIEW_TYPE_AGENT_BOARD,
+			(leaf) => new AgentBoardView(leaf, this)
 		);
 
-		this.addRibbonIcon("check-square", "Open Todo Board", () => {
+		this.addRibbonIcon("check-square", "Open AgentBoard", () => {
 			this.activateView();
 		});
 
 		this.addCommand({
-			id: "open-todo-board",
-			name: "Open Todo Board",
+			id: "open-agent-board",
+			name: "Open AgentBoard",
 			callback: () => {
 				this.activateView();
 			},
 		});
 
-		this.addSettingTab(new TodoBoardSettingTab(this.app, this));
+		this.addSettingTab(new AgentBoardSettingTab(this.app, this));
 	}
 
 	async activateView() {
 		const { workspace } = this.app;
-		const leaves = workspace.getLeavesOfType(VIEW_TYPE_TODO_BOARD);
+		const leaves = workspace.getLeavesOfType(VIEW_TYPE_AGENT_BOARD);
 
 		if (leaves.length > 0) {
 			workspace.revealLeaf(leaves[0]);
@@ -73,7 +73,7 @@ export default class TodoBoardPlugin extends Plugin {
 		}
 
 		const leaf = workspace.getLeaf("tab");
-		await leaf.setViewState({ type: VIEW_TYPE_TODO_BOARD, active: true });
+		await leaf.setViewState({ type: VIEW_TYPE_AGENT_BOARD, active: true });
 		workspace.revealLeaf(leaf);
 	}
 
@@ -86,20 +86,20 @@ export default class TodoBoardPlugin extends Plugin {
 	}
 }
 
-class TodoBoardView extends ItemView {
-	plugin: TodoBoardPlugin;
+class AgentBoardView extends ItemView {
+	plugin: AgentBoardPlugin;
 
-	constructor(leaf: WorkspaceLeaf, plugin: TodoBoardPlugin) {
+	constructor(leaf: WorkspaceLeaf, plugin: AgentBoardPlugin) {
 		super(leaf);
 		this.plugin = plugin;
 	}
 
 	getViewType(): string {
-		return VIEW_TYPE_TODO_BOARD;
+		return VIEW_TYPE_AGENT_BOARD;
 	}
 
 	getDisplayText(): string {
-		return "Todo Board";
+		return "AgentBoard";
 	}
 
 	getIcon(): string {
@@ -221,7 +221,7 @@ class TodoBoardView extends ItemView {
 		const file = await this.getTodoFile();
 		if (!file) {
 			container.createEl("div", {
-				text: "Target MD file with todo list not found. Configure the path in Settings > ToDo list board",
+				text: "Target MD file with todo list not found. Configure the path in Settings > AgentBoard",
 				cls: "todo-board-error",
 			});
 			return;
@@ -849,10 +849,10 @@ class TodoBoardView extends ItemView {
 	}
 }
 
-class TodoBoardSettingTab extends PluginSettingTab {
-	plugin: TodoBoardPlugin;
+class AgentBoardSettingTab extends PluginSettingTab {
+	plugin: AgentBoardPlugin;
 
-	constructor(app: App, plugin: TodoBoardPlugin) {
+	constructor(app: App, plugin: AgentBoardPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -860,7 +860,7 @@ class TodoBoardSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-		containerEl.createEl("h2", { text: "Todo List Board Settings" });
+		containerEl.createEl("h2", { text: "AgentBoard Settings" });
 
 		const datalistId = "todo-board-file-suggestions";
 		const datalist = containerEl.createEl("datalist") as HTMLDataListElement;

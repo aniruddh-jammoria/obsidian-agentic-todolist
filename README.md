@@ -1,11 +1,11 @@
-# Todo List Board
+# AgentBoard
 
-An Obsidian plugin that turns your Markdown to-do list into a visual, column-based board — one column per theme. The board and the Markdown file stay in sync in real time, so you can edit either one and see the change reflected immediately. Designed to work alongside AI agents that append tasks to the file.
+An Obsidian plugin that keeps a visual task board in sync with a Markdown todo file — in real time, in both directions. Designed for workflows where AI agents maintain the Markdown file while you interact with the board, though it works just as well as a standalone board for any Obsidian user.
 
 ## Features
 
-- **Board view** — each `##` / `#` / `###` section in your todo file becomes its own column
-- **Real-time sync** — changes made in the Markdown file (including by external agents) instantly appear on the board, and vice versa
+- **Board view** — each `#`, `##`, or `###` section in your todo file becomes its own column
+- **Real-time sync** — changes made in the Markdown file (including by external AI agents) instantly appear on the board, and vice versa
 - **Critical tasks** — mark a task as critical via the `⋯` menu; text turns red and a `!` badge appears
 - **Inline editing** — double-click any task to edit its text directly on the board
 - **Rename columns** — double-click a column heading to rename it; the change writes back to the MD file
@@ -19,7 +19,7 @@ An Obsidian plugin that turns your Markdown to-do list into a visual, column-bas
 
 ## Todo file format
 
-The plugin reads any Markdown file that uses this structure:
+AgentBoard reads any Markdown file that uses this structure:
 
 ```markdown
 ## Health
@@ -33,7 +33,7 @@ About: Physical and mental health items.
 - [ ] Review pension status (Critical)
 ```
 
-- `##`, `#`, or `###` headings become columns
+- `#`, `##`, or `###` headings become columns
 - `About:` (optional) provides hover tooltip text for the column
 - `- [ ]` open tasks, `- [x]` completed tasks
 - Append ` (Critical)` to a task line to mark it as critical
@@ -43,22 +43,22 @@ About: Physical and mental health items.
 ### From the Obsidian community plugins directory
 
 1. Open **Settings → Community plugins → Browse**
-2. Search for **Todo List Board**
+2. Search for **AgentBoard**
 3. Click **Install**, then **Enable**
 
 ### Manual installation
 
 1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/aniruddh-jammoria/obsidian-agentic-todolist/releases/latest)
-2. Copy them into `<your vault>/.obsidian/plugins/todo-list-board/`
+2. Copy them into `<your vault>/.obsidian/plugins/agent-board/`
 3. Enable the plugin in **Settings → Community plugins**
 
 ## Configuration
 
-Open **Settings → Todo List Board** and set the path to your todo Markdown file (relative to the vault root, e.g. `todo.md` or `notes/todos.md`). The path field autocompletes from all `.md` files in your vault.
+Open **Settings → AgentBoard** and set the path to your todo Markdown file (relative to the vault root, e.g. `todo.md` or `notes/todos.md`). The path field autocompletes from all `.md` files in your vault.
 
 ## Usage
 
-- Open the board via the **checkbox icon** in the left ribbon, or run **Open Todo Board** from the command palette
+- Open the board via the **checkbox icon** in the left ribbon, or run **Open AgentBoard** from the command palette
 - **Add a task** — click `+ Add task` at the bottom of any column, type, and press Enter
 - **Complete a task** — click the checkbox; the task moves to the Completed section
 - **Edit a task** — double-click the task text, edit, then press Enter or click elsewhere
@@ -71,13 +71,13 @@ Open **Settings → Todo List Board** and set the path to your todo Markdown fil
 
 ```bash
 git clone https://github.com/aniruddh-jammoria/obsidian-agentic-todolist
-cd obsidian-todo-list-board
+cd obsidian-agentic-todolist
 npm install
 npm run dev   # watch mode
 npm run build # production build
 ```
 
-Copy `main.js`, `manifest.json`, and `styles.css` into your vault's plugin folder to test.
+Copy `main.js`, `manifest.json`, and `styles.css` into `<vault>/.obsidian/plugins/agent-board/` to test.
 
 ## License
 

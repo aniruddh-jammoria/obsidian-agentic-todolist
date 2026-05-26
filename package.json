@@ -1,5 +1,5 @@
 {
-  "name": "obsidian-todo-list-board",
+  "name": "obsidian-agent-board",
   "version": "1.0.0",
   "description": "Visualize your markdown todo list as a Google Tasks-style board",
   "main": "main.js",
