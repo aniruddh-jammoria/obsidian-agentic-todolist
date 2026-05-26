@@ -101,7 +101,9 @@
 
 /* Dotted underline signals that a tooltip is available */
 .todo-column-title-has-about {
-	text-decoration: underline dotted var(--text-muted);
+	text-decoration-line: underline;
+	text-decoration-style: dotted;
+	text-decoration-color: var(--text-muted);
 	text-underline-offset: 3px;
 	cursor: help;
 }

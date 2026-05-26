@@ -1,7 +1,7 @@
 {
   "id": "agent-board",
   "name": "AgentBoard",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "0.15.0",
   "description": "A visual board synced with a Markdown todo file. Edit tasks on the board or via AI agents — changes reflect instantly on both sides.",
   "author": "Aniruddh Jammoria",
