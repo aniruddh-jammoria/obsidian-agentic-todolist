@@ -1,0 +1,11 @@
+node_modules/
+main.js
+*.js.map
+.DS_Store
+
+# Obsidian vault config — not part of the plugin source
+.obsidian/
+
+# Vault notes — not part of the plugin source
+Starter.md
+Another new note.md
