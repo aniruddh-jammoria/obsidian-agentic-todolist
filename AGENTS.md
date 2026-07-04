@@ -65,14 +65,23 @@ Key methods in `AgentBoardView`:
 - `columnOrder` lives in settings, **decoupled from file order** — reordering columns never rewrites the Markdown.
 - Overdue: `isOverdue` + `dueToISO`/`isoToDue` convert between `DD-Mon[-YYYY]` and ISO; open tasks past due get a red outline (completed exempt).
 
+## Privacy — keep private info out of committed files
+
+The real working file, `todolist_example_internal.md` (gitignored), contains the user's **actual private tasks** (health, finances, personal matters). It is the best reference for the current format, but its contents must **never** be copied verbatim into anything committed to the repo.
+
+- When creating or updating a **committed** example (`todolist_example.md`, the README example block, docs, screenshots), use **fictional, sanitized tasks** — generic placeholders like "Book dentist appointment", "Set up a recurring ETF investment account". Do not carry over personal specifics (medical conditions, account names, real names, real dates tied to the user).
+- Before committing any file that shows example tasks, **scan it for anything that reads as real personal data** and replace it.
+- If asked to "take examples from the todo file", pull the *shape* and *phrasing style* from the internal file but rewrite the content as neutral placeholders.
+- Screenshots (`assets/*.png`) must show the sanitized `todolist_example.md`, never the internal file.
+
 ## Conventions & gotchas
 
 - **Match-by-text is ambiguous for duplicates**: two identical task texts in the same column + completion state resolve to the first match. Known limitation.
 - **Year inference**: year-less `DD-Mon` dates assume the current year for overdue checks until re-saved with a year via the picker.
 - **`showPicker()`** isn't in the configured DOM lib types — it's cast inline; desktop-only API, degrades to focus-open on mobile.
 - **Critical styling** is intentionally muted (left stripe + faint tint + desaturated semibold text via `color-mix`, with a solid fallback color) — not bright red. Don't reintroduce the neon `var(--color-red)` text or the `!` badge.
-- **`README.md` is current** and doubles as the public ingestion contract for the companion agent skill (which is intentionally not in the repo yet — "example skill coming soon"). **`todolist_example.md`** (the committed public sample) is still in the old `(Critical)` format and should be updated to the attribute-block format before any community-plugin release.
-- `todolist_example_internal.md` is the real working file (gitignored for privacy) and the best reference for the current format.
+- **`README.md` is current** and doubles as the public ingestion contract for the companion agent skill (which is intentionally not in the repo yet — "example skill coming soon"). **`todolist_example.md`** (the committed public sample) is in the current attribute-block format with sanitized, fictional tasks — keep it that way (see [Privacy](#privacy--keep-private-info-out-of-committed-files)).
+- `todolist_example_internal.md` is the real working file (gitignored for privacy) and the best reference for the current format — but its contents are private; never copy them into committed files verbatim.
 - manifest id: `agent-board`; package name: `obsidian-agent-board`. Repo is being prepped for Obsidian community-plugin submission.
 
 ## Development log
