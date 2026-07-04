@@ -3,9 +3,16 @@ main.js
 *.js.map
 .DS_Store
 
+# Local Claude Code config
+.claude/
+
 # Obsidian vault config — not part of the plugin source
 .obsidian/
 
 # Vault notes — not part of the plugin source
 Starter.md
 Another new note.md
+
+# Working examples 
+todolist_example_internal.md
+skill_internal.md

@@ -32,6 +32,14 @@
 	text-decoration: underline;
 }
 
+/* "Last updated" timestamp, pushed to the right of the file bar */
+.todo-board-file-updated {
+	margin-left: auto;
+	color: var(--text-faint);
+	font-size: 11px;
+	white-space: nowrap;
+}
+
 /* ── Board ───────────────────────────────────────────────────── */
 .todo-board {
 	flex: 1;
@@ -140,6 +148,8 @@
 	align-items: flex-start;
 	gap: 8px;
 	padding: 5px 6px;
+	/* Transparent stripe reserved so critical rows don't shift alignment */
+	border-left: 3px solid transparent;
 	border-radius: 5px;
 	cursor: default;
 }
@@ -148,11 +158,36 @@
 	background-color: var(--background-modifier-hover);
 }
 
+/* Critical: a muted red stripe + faint tint, not loud red text */
+.todo-task-critical {
+	border-left-color: rgba(200, 70, 70, 0.55);
+	background-color: rgba(200, 70, 70, 0.05);
+}
+
+.todo-task-critical:hover {
+	background-color: rgba(200, 70, 70, 0.1);
+}
+
 .todo-checkbox {
 	margin-top: 3px;
 	cursor: pointer;
 	flex-shrink: 0;
 	accent-color: var(--interactive-accent);
+}
+
+/* Body wraps the text line and the metadata row */
+.todo-task-body {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.todo-task-text-line {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
 }
 
 .todo-task-text {
@@ -164,9 +199,252 @@
 	min-width: 0;
 }
 
-/* Critical task text is red */
-.todo-task-text-critical {
+/* ── Metadata row (scores + due date) ────────────────────────── */
+.todo-meta {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+/* Single pill split into U | I | E sections */
+.todo-score-box {
+	display: inline-flex;
+	align-items: stretch;
+	border-radius: 4px;
+	overflow: hidden;
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 0.2px;
+	line-height: 1;
+}
+
+.todo-score {
+	padding: 3px 5px;
+	border-left: 1px solid var(--background-secondary);
+}
+
+.todo-score-editable {
+	cursor: pointer;
+}
+
+.todo-score-editable:hover {
+	filter: brightness(1.15);
+}
+
+.todo-score:first-child {
+	border-left: none;
+}
+
+.todo-score-red {
+	background-color: rgba(224, 49, 49, 0.18);
 	color: var(--color-red, #e03131);
+}
+
+.todo-score-amber {
+	background-color: rgba(217, 119, 6, 0.2);
+	color: var(--color-orange, #d97706);
+}
+
+.todo-score-green {
+	background-color: rgba(45, 138, 78, 0.18);
+	color: var(--color-green, #2d8a4e);
+}
+
+/* Due date pill with calendar icon */
+.todo-due {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	font-size: 10px;
+	font-weight: 600;
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+
+.todo-due-icon {
+	display: inline-flex;
+	align-items: center;
+}
+
+.todo-due-icon svg {
+	width: 12px;
+	height: 12px;
+}
+
+.todo-due-editable {
+	cursor: pointer;
+}
+
+.todo-due-editable:hover {
+	color: var(--text-normal);
+}
+
+/* Passed due date: red outline around the whole pill */
+.todo-due-overdue {
+	color: var(--color-red, #e03131);
+	background-color: rgba(224, 49, 49, 0.12);
+	border: 1px solid var(--color-red, #e03131);
+	border-radius: 4px;
+	padding: 1px 5px;
+}
+
+.todo-due-overdue.todo-due-editable:hover {
+	color: var(--color-red, #e03131);
+	filter: brightness(1.1);
+}
+
+/* Add-due affordance on date-less tasks: faint, revealed on row hover */
+.todo-due-empty {
+	opacity: 0;
+	transition: opacity 0.1s ease;
+}
+
+.todo-task:hover .todo-due-empty {
+	opacity: 0.5;
+}
+
+.todo-task:hover .todo-due-empty:hover {
+	opacity: 1;
+}
+
+/* Transient native date picker */
+/* ── Custom calendar popover ─────────────────────────────────── */
+.todo-cal-popover {
+	position: fixed;
+	z-index: 9999;
+	width: 240px;
+	padding: 8px;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+	user-select: none;
+}
+
+.todo-cal-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 6px;
+}
+
+.todo-cal-label {
+	font-size: 13px;
+	font-weight: 700;
+	color: var(--text-normal);
+}
+
+.todo-cal-nav {
+	background: none;
+	border: none;
+	cursor: pointer;
+	color: var(--text-muted);
+	font-size: 16px;
+	line-height: 1;
+	padding: 2px 8px;
+	border-radius: 4px;
+}
+
+.todo-cal-nav:hover {
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.todo-cal-grid {
+	display: grid;
+	grid-template-columns: repeat(7, 1fr);
+	gap: 2px;
+}
+
+.todo-cal-dow {
+	margin-bottom: 2px;
+}
+
+.todo-cal-dowcell {
+	text-align: center;
+	font-size: 10px;
+	font-weight: 600;
+	color: var(--text-faint);
+	padding: 2px 0;
+}
+
+.todo-cal-cell {
+	aspect-ratio: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: none;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 12px;
+	color: var(--text-normal);
+	padding: 0;
+}
+
+.todo-cal-cell:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.todo-cal-empty {
+	cursor: default;
+}
+
+.todo-cal-empty:hover {
+	background: none;
+}
+
+.todo-cal-today {
+	font-weight: 700;
+	color: var(--text-accent);
+	box-shadow: inset 0 0 0 1px var(--background-modifier-border);
+}
+
+.todo-cal-selected {
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.todo-cal-selected:hover {
+	background-color: var(--interactive-accent-hover);
+}
+
+.todo-cal-footer {
+	display: flex;
+	gap: 6px;
+	margin-top: 8px;
+	padding-top: 6px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.todo-cal-action {
+	flex: 1;
+	padding: 4px 0;
+	background: transparent;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 5px;
+	color: var(--text-muted);
+	cursor: pointer;
+	font-size: 12px;
+}
+
+.todo-cal-action:hover {
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+/* Dim the metadata for completed tasks */
+.todo-task-completed .todo-meta {
+	opacity: 0.55;
+}
+
+/* Critical task text: gently emphasized, not bright red.
+   The muted-red stripe on the row carries the main signal. */
+.todo-task-text-critical {
+	color: #a85a5a; /* fallback for older renderers */
+	color: color-mix(in srgb, var(--color-red, #e03131) 55%, var(--text-muted));
+	font-weight: 600;
 }
 
 /* Subtle cursor hint that the text is double-clickable */
@@ -177,16 +455,6 @@
 .todo-task-completed .todo-task-text {
 	text-decoration: line-through;
 	color: var(--text-muted);
-}
-
-/* ── Critical badge ──────────────────────────────────────────── */
-.todo-critical-badge {
-	flex-shrink: 0;
-	font-weight: 900;
-	font-size: 12px;
-	color: var(--color-red, #e03131);
-	line-height: 1.45;
-	margin-top: 1px;
 }
 
 /* ── Three-dot menu button ───────────────────────────────────── */

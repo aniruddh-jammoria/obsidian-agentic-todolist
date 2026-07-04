@@ -1,6 +1,8 @@
 import esbuild from "esbuild";
 import process from "process";
 import { builtinModules } from "module";
+import { copyFile, mkdir } from "fs/promises";
+import { join } from "path";
 
 const banner =
 `/*
@@ -10,6 +12,31 @@ if you want to view the source, please visit the github repository of this plugi
 `;
 
 const prod = (process.argv[2] === "production");
+
+// Copy the built files into the vault's plugin folder so Obsidian loads
+// the freshest build. This vault is the repo folder itself, so the plugin
+// lives at .obsidian/plugins/<id>/. Runs after every (re)build, including
+// watch-mode rebuilds — just reload Obsidian to see changes.
+const PLUGIN_DIR = join(".obsidian", "plugins", "agent-board");
+const FILES_TO_SYNC = ["main.js", "manifest.json", "styles.css"];
+
+const syncToVaultPlugin = {
+	name: "sync-to-vault-plugin",
+	setup(build) {
+		build.onEnd(async (result) => {
+			if (result.errors.length > 0) return; // don't copy a broken build
+			await mkdir(PLUGIN_DIR, { recursive: true });
+			await Promise.all(
+				FILES_TO_SYNC.map((f) =>
+					copyFile(f, join(PLUGIN_DIR, f)).catch((e) =>
+						console.warn(`sync: could not copy ${f}: ${e.message}`)
+					)
+				)
+			);
+			console.log(`sync: copied ${FILES_TO_SYNC.join(", ")} → ${PLUGIN_DIR}`);
+		});
+	},
+};
 
 const context = await esbuild.context({
 	banner: {
@@ -38,6 +65,7 @@ const context = await esbuild.context({
 	sourcemap: prod ? false : "inline",
 	treeShaking: true,
 	outfile: "main.js",
+	plugins: [syncToVaultPlugin],
 });
 
 if (prod) {

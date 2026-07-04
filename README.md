@@ -1,42 +1,94 @@
 # AgentBoard
 
-An Obsidian plugin that keeps a visual task board in sync with a Markdown todo file — in real time, in both directions. Designed for workflows where AI agents maintain the Markdown file while you interact with the board, though it works just as well as a standalone board for any Obsidian user.
+An Obsidian plugin that renders a Markdown todo file as a Google Tasks–style board — synced in real time, in both directions.
 
-## Features
+![AgentBoard screenshot](assets/board.png)
 
-- **Board view** — each `#`, `##`, or `###` section in your todo file becomes its own column
-- **Real-time sync** — changes made in the Markdown file (including by external AI agents) instantly appear on the board, and vice versa
-- **Critical tasks** — mark a task as critical via the `⋯` menu; text turns red and a `!` badge appears
-- **Inline editing** — double-click any task to edit its text directly on the board
-- **Rename columns** — double-click a column heading to rename it; the change writes back to the MD file
-- **Reorder columns** — drag columns by the `⠿` handle without affecting the MD file structure
-- **Completed tasks** — completed tasks collapse into a foldable section at the bottom of each column
-- **Add tasks** — type directly on the board; new tasks are appended to the correct section in the MD file
-- **Delete tasks** — remove a task from the board via the `⋯` menu
-- **Obsidian wiki-links** — `[[note_name]]` links in task text render as clickable links; autocomplete shows while you type `[[`
-- **Hover descriptions** — `About:` lines under section headings appear as tooltips on the column title
-- **Source file link** — the active todo file is shown at the top of the board and is clickable
+AgentBoard is designed to pair with an **agentic skill**: an AI agent (for example, a Claude Code slash command) captures your brain-dump of tasks and writes them into a single Markdown file in the format described below, scoring each task for urgency, importance, and effort. AgentBoard then visualizes that file as a prioritized board — and any edit you make on the board is written straight back to the Markdown, so the agent and the board stay in lock-step.
+
+> **Companion skill:** an example skill file that produces this format is coming soon. Until then, any agent (or you, by hand) can maintain the file as long as it follows the format below.
+
+## How it works
+
+1. **An agent maintains the file.** A skill ingests your tasks and writes/updates the todo Markdown file, assigning each task the attribute block described in [Todo file format](#todo-file-format).
+2. **AgentBoard renders it.** Each heading becomes a column; each task becomes a card showing its urgency/importance/effort and due date. Changes to the file appear on the board instantly.
+3. **You refine on the board.** Editing a task's score, due date, or critical flag writes back to the file and stamps it `UsrEdit:Y` — a signal to the agent to leave that task's values alone on its next run.
 
 ## Todo file format
 
-AgentBoard reads any Markdown file that uses this structure:
+This is the contract between the agent skill and AgentBoard. Any file that follows it can be visualized.
 
 ```markdown
-## Health
-About: Physical and mental health items.
+This note is a brain dump of things to do, in no particular order.
 
-- [ ] Book dentist appointment
-- [x] Start stretching routine (Critical)
+Last updated on: 04-Jul-2026 22:15
+
+## Health
+About: Physical and mental wellbeing.
+
+- [ ] Claim insurance for tooth implant [U:3 I:3 T:6 E:M Due:30-Jun-2026 Crit:Y]
+- [ ] Schedule teeth cleaning [U:2 I:2 T:4 E:S Due:- Crit:Y]
+- [ ] Start stretching routine [U:1 I:2 T:3 E:S Due:- Crit:N]
+- [x] Book ADHD assessment [U:3 I:3 T:6 E:S Due:- Crit:Y]
 
 ## Finance
-- [ ] Open savings account
-- [ ] Review pension status (Critical)
+About: Money, banking, and investments.
+
+- [ ] Update home address at all banks [U:2 I:3 T:5 E:M Due:31-Jul-2026 Crit:Y]
+- [ ] Open a brokerage account [U:1 I:2 T:3 E:M Due:- Crit:N]
 ```
 
-- `#`, `##`, or `###` headings become columns
-- `About:` (optional) provides hover tooltip text for the column
-- `- [ ]` open tasks, `- [x]` completed tasks
-- Append ` (Critical)` to a task line to mark it as critical
+### Structure
+
+- **Columns** — every `#`, `##`, or `###` heading becomes a column.
+- **Tasks** — `- [ ]` is an open task, `- [x]` is completed. Completed tasks collapse into a foldable section per column.
+- **`About:`** — an optional line directly under a heading; shown as a hover tooltip on the column title.
+- **`Last updated on:`** — an optional line anywhere in the file; shown in the board's top bar. Display only — AgentBoard never rewrites it, so the agent should maintain it.
+- **`[[wiki-links]]`** — render as clickable links inside task text.
+
+### Task attribute block
+
+Each task line ends with a bracketed block of `Key:Value` tokens. The agent should emit them in this order:
+
+```
+[U:<1-3> I:<1-3> T:<2-6> E:<S|M|L> Due:<DD-Mon-YYYY|-> Crit:<Y|N>]
+```
+
+| Key | Meaning | Values | Notes |
+|-----|---------|--------|-------|
+| `U` | **Urgency** | `1`–`3` | 3 = most time-sensitive |
+| `I` | **Importance** | `1`–`3` | 3 = most impactful |
+| `T` | **Total** | `2`–`6` | **Derived:** `T = U + I`. Used for ranking. |
+| `E` | **Effort** | `S` / `M` / `L` | Estimated time to complete |
+| `Due` | **Deadline** | `DD-Mon-YYYY` or `-` | e.g. `30-Jun-2026`; `-` for none. Year-less `DD-Mon` is accepted (year is inferred) but `DD-Mon-YYYY` is preferred. |
+| `Crit` | **Critical flag** | `Y` / `N` | **Derived:** `Y` when `U ≥ 2 AND I ≥ 2`, otherwise `N`. |
+| `UsrEdit` | **User-edited flag** | `Y` | Written by AgentBoard when a user edits a task on the board. **Not emitted by the agent.** |
+
+### Rules for the agent skill
+
+- **Recompute derived fields.** `T` and `Crit` are functions of `U`/`I` — always keep them consistent (`T = U + I`; `Crit = Y` iff `U ≥ 2 AND I ≥ 2`).
+- **Do not emit `UsrEdit`.** It is owned by AgentBoard. Its presence (`UsrEdit:Y`) means the user has manually adjusted that task.
+- **Respect `UsrEdit:Y`.** When regenerating or re-scoring the file, do **not** overwrite the U/I/E/Due/Crit values of any task marked `UsrEdit:Y` — the user's choices win.
+- **Preserve the block order and formatting** so diffs stay clean.
+
+### On the board
+
+- The card shows a single `U | I | E` pill with each section colored by value — red (`U`/`I` = 3, `E` = L), amber (= 2, `E` = M), green (= 1, `E` = S).
+- The due date appears with a calendar icon; if it has passed, the date is outlined in red.
+- Critical tasks are marked with a muted red stripe and slightly emphasized text.
+
+## Features
+
+- **Board view** — headings become columns, tasks become cards
+- **Real-time two-way sync** — file edits (including by an agent) and board edits stay in sync instantly
+- **On-board editing** — click a `U`/`I`/`E` section to change it, click the due date to pick a new one; changes (and derived `T`/`Crit`) write back to the file and stamp `UsrEdit:Y`
+- **Due dates** — shown with a calendar icon; overdue dates are highlighted
+- **Critical tasks** — derived from `Crit`, or toggled manually via the `⋯` menu
+- **Add / edit / delete / complete** tasks directly on the board
+- **Rename & reorder columns** — double-click a title to rename (writes back); drag the `⠿` handle to reorder (board-only, doesn't touch the file)
+- **Wiki-links** — `[[note]]` links render clickable with `[[` autocomplete
+- **Hover descriptions** — `About:` lines become column tooltips
+- **Source & timestamp** — the active file and its `Last updated on:` line are shown at the top of the board
 
 ## Installation
 
@@ -54,18 +106,20 @@ About: Physical and mental health items.
 
 ## Configuration
 
-Open **Settings → AgentBoard** and set the path to your todo Markdown file (relative to the vault root, e.g. `todo.md` or `notes/todos.md`). The path field autocompletes from all `.md` files in your vault.
+Open **Settings → AgentBoard** and set the path to your todo Markdown file, relative to the vault root (e.g. `todo.md` or `notes/todos.md`). The field autocompletes from all `.md` files in your vault.
 
 ## Usage
 
 - Open the board via the **checkbox icon** in the left ribbon, or run **Open AgentBoard** from the command palette
-- **Add a task** — click `+ Add task` at the bottom of any column, type, and press Enter
-- **Complete a task** — click the checkbox; the task moves to the Completed section
-- **Edit a task** — double-click the task text, edit, then press Enter or click elsewhere
-- **Critical / Delete** — hover over a task, click the `⋯` button, and choose from the menu
-- **Rename a column** — double-click the column title, edit, press Enter
-- **Reorder columns** — drag the `⠿` handle on any column header to a new position
-- **Open source file** — click the filename link at the top of the board
+- **Add a task** — click `+ Add task` at the bottom of a column, type, press Enter
+- **Complete a task** — click the checkbox; it moves to the Completed section
+- **Edit text** — double-click the task text
+- **Change U / I / E** — click that section of the score pill and pick a value
+- **Set / change a due date** — click the due date (or the faint calendar icon on a task without one)
+- **Critical / Delete** — hover a task, click `⋯`, choose from the menu
+- **Rename a column** — double-click the title
+- **Reorder columns** — drag the `⠿` handle
+- **Open the source file** — click the filename at the top of the board
 
 ## Development
 
@@ -77,7 +131,7 @@ npm run dev   # watch mode
 npm run build # production build
 ```
 
-Copy `main.js`, `manifest.json`, and `styles.css` into `<vault>/.obsidian/plugins/agent-board/` to test.
+Copy `main.js`, `manifest.json`, and `styles.css` into `<vault>/.obsidian/plugins/agent-board/` to test. See [AGENTS.md](AGENTS.md) for architecture and contributor notes.
 
 ## License
 

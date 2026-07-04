@@ -5,6 +5,7 @@ import {
 	Plugin,
 	PluginSettingTab,
 	Setting,
+	setIcon,
 	TAbstractFile,
 	TFile,
 	WorkspaceLeaf,
@@ -12,10 +13,19 @@ import {
 
 const VIEW_TYPE_AGENT_BOARD = "agent-board-view";
 
+type Effort = "S" | "M" | "L";
+type Level = "red" | "amber" | "green";
+
 interface TodoTask {
-	text: string;      // clean text, (Critical) stripped
+	text: string;      // clean text, attribute block stripped
 	completed: boolean;
-	critical: boolean;
+	critical: boolean;     // from Crit:Y / Crit:y
+	urgency: number | null;     // U (1–3)
+	importance: number | null;  // I (1–3)
+	total: number | null;       // T (U + I)
+	effort: Effort | null;      // E (S / M / L)
+	due: string | null;         // Due (DD-Mon), null when "-" or absent
+	attr: string;      // raw trailing attribute block incl. [], "" if none
 	lineNumber: number;
 }
 
@@ -128,6 +138,13 @@ class AgentBoardView extends ItemView {
 		return f instanceof TFile ? f : null;
 	}
 
+	// Pulls the "Last updated on: ..." line, if present, from anywhere
+	// in the file. Returns the trimmed timestamp text or null.
+	private parseLastUpdated(content: string): string | null {
+		const m = content.match(/^Last updated on:\s*(.+)$/m);
+		return m ? m[1].trim() : null;
+	}
+
 	private parseContent(content: string): TodoTheme[] {
 		const lines = content.split("\n");
 		const themes: TodoTheme[] = [];
@@ -156,19 +173,83 @@ class AgentBoardView extends ItemView {
 
 			const m = line.match(/^- \[([ x])\] (.+)$/);
 			if (m && current) {
-				const rawText = m[2];
-				const critical = /\(Critical\)/i.test(rawText);
-				const text = rawText.replace(/\s*\(Critical\)/gi, "").trim();
+				const meta = this.parseTaskMeta(m[2]);
 				current.tasks.push({
-					text,
+					text: meta.text,
 					completed: m[1] === "x",
-					critical,
+					critical: meta.critical,
+					urgency: meta.urgency,
+					importance: meta.importance,
+					total: meta.total,
+					effort: meta.effort,
+					due: meta.due,
+					attr: meta.attr,
 					lineNumber: i,
 				});
 			}
 		}
 
 		return themes;
+	}
+
+	// Splits a task's raw text into clean text + its trailing attribute
+	// block, e.g. "Do thing [U:3 I:2 T:5 E:M Due:30-Jun Crit:Y]".
+	// The block is matched only at end-of-line and must contain Crit:, so
+	// [[wiki-links]] and bracketed URLs in the text are left untouched.
+	private parseTaskMeta(rawText: string): {
+		text: string;
+		attr: string;
+		critical: boolean;
+		urgency: number | null;
+		importance: number | null;
+		total: number | null;
+		effort: Effort | null;
+		due: string | null;
+	} {
+		// Match a trailing bracket made up entirely of known Key:Value
+		// attribute tokens. This distinguishes the attribute block from
+		// [[wiki-links]] and bracketed URLs/text elsewhere in the line.
+		const attrMatch = rawText.match(
+			/\s*(\[(?:U|I|T|E|Due|Crit|UsrEdit):[^\s\]]+(?:\s+(?:U|I|T|E|Due|Crit|UsrEdit):[^\s\]]+)*\])\s*$/
+		);
+
+		if (!attrMatch) {
+			return {
+				text: rawText.trim(),
+				attr: "",
+				critical: false,
+				urgency: null,
+				importance: null,
+				total: null,
+				effort: null,
+				due: null,
+			};
+		}
+
+		const attr = attrMatch[1];
+		const text = rawText.slice(0, attrMatch.index).trim();
+
+		const num = (re: RegExp): number | null => {
+			const mm = attr.match(re);
+			return mm ? parseInt(mm[1], 10) : null;
+		};
+
+		const effortMatch = attr.match(/\bE:\s*([SMLsml])\b/);
+		const dueMatch = attr.match(/\bDue:\s*([^\s\]]+)/i);
+		const critMatch = attr.match(/\bCrit:\s*([YyNn])\b/);
+
+		return {
+			text,
+			attr,
+			critical: critMatch ? /y/i.test(critMatch[1]) : false,
+			urgency: num(/\bU:\s*(\d)/i),
+			importance: num(/\bI:\s*(\d)/i),
+			total: num(/\bT:\s*(\d)/i),
+			effort: effortMatch
+				? (effortMatch[1].toUpperCase() as Effort)
+				: null,
+			due: dueMatch && dueMatch[1] !== "-" ? dueMatch[1] : null,
+		};
 	}
 
 	private getOrderedThemes(themes: TodoTheme[]): TodoTheme[] {
@@ -228,6 +309,16 @@ class AgentBoardView extends ItemView {
 		}
 
 		const content = await this.app.vault.read(file);
+
+		// Show the file's "Last updated on: ..." line, if it has one
+		const lastUpdated = this.parseLastUpdated(content);
+		if (lastUpdated) {
+			fileBar.createEl("span", {
+				text: `Last updated: ${lastUpdated}`,
+				cls: "todo-board-file-updated",
+			});
+		}
+
 		const themes = this.parseContent(content);
 		const orderedThemes = this.getOrderedThemes(themes);
 
@@ -371,22 +462,21 @@ class AgentBoardView extends ItemView {
 			await this.toggleTask(theme.name, task.text, task.completed);
 		});
 
-		if (task.critical) {
-			taskEl.createEl("span", {
-				text: "!",
-				cls: "todo-critical-badge",
-				attr: { title: "Critical" },
-			});
-		}
+		// Body holds the text line and the metadata row (scores + due date)
+		const body = taskEl.createEl("div", { cls: "todo-task-body" });
 
-		const textSpan = this.renderTaskText(taskEl, task);
+		const textLine = body.createEl("div", { cls: "todo-task-text-line" });
+
+		const textSpan = this.renderTaskText(textLine, task);
 
 		if (!task.completed) {
 			textSpan.addClass("todo-task-text-editable");
 			textSpan.addEventListener("dblclick", () => {
-				this.showEditInput(taskEl, theme, task, textSpan);
+				this.showEditInput(textLine, theme, task, textSpan);
 			});
 		}
+
+		this.renderTaskMeta(body, theme, task);
 
 		// Three-dot menu button — shown only on row hover via CSS
 		const menuBtn = taskEl.createEl("button", {
@@ -435,6 +525,346 @@ class AgentBoardView extends ItemView {
 		}
 
 		return span;
+	}
+
+	// ── Metadata row (U | I | E score box + due date) ────────────────
+
+	private renderTaskMeta(
+		body: HTMLElement,
+		theme: TodoTheme,
+		task: TodoTask
+	) {
+		const hasScores =
+			task.urgency !== null ||
+			task.importance !== null ||
+			task.effort !== null;
+
+		const meta = body.createEl("div", { cls: "todo-meta" });
+
+		if (hasScores) {
+			const box = meta.createEl("div", {
+				cls: "todo-score-box",
+				attr: { title: "Urgency | Importance | Effort — click to change" },
+			});
+			if (task.urgency !== null) {
+				this.renderScoreSeg(
+					box, "U", String(task.urgency),
+					this.levelForValue(task.urgency),
+					(e) => this.showScoreMenu(e, theme, task, "U")
+				);
+			}
+			if (task.importance !== null) {
+				this.renderScoreSeg(
+					box, "I", String(task.importance),
+					this.levelForValue(task.importance),
+					(e) => this.showScoreMenu(e, theme, task, "I")
+				);
+			}
+			if (task.effort !== null) {
+				this.renderScoreSeg(
+					box, "E", task.effort,
+					this.levelForEffort(task.effort),
+					(e) => this.showScoreMenu(e, theme, task, "E")
+				);
+			}
+		}
+
+		if (task.due) {
+			// Overdue dates on still-open tasks get a red outline
+			const overdue = !task.completed && this.isOverdue(task.due);
+			const duePill = meta.createEl("span", {
+				cls: `todo-due todo-due-editable${overdue ? " todo-due-overdue" : ""}`,
+				attr: {
+					title: overdue
+						? `Overdue — due ${task.due} (click to change)`
+						: `Due ${task.due} (click to change)`,
+				},
+			});
+			const icon = duePill.createEl("span", { cls: "todo-due-icon" });
+			setIcon(icon, "calendar");
+			duePill.createEl("span", { text: task.due, cls: "todo-due-text" });
+			duePill.addEventListener("click", (e) => {
+				e.stopPropagation();
+				this.showDatePicker(duePill, theme, task);
+			});
+		} else {
+			// No due date yet — a faint calendar icon (visible on hover) to add one
+			const addDue = meta.createEl("span", {
+				cls: "todo-due todo-due-editable todo-due-empty",
+				attr: { title: "Add due date" },
+			});
+			const icon = addDue.createEl("span", { cls: "todo-due-icon" });
+			setIcon(icon, "calendar");
+			addDue.addEventListener("click", (e) => {
+				e.stopPropagation();
+				this.showDatePicker(addDue, theme, task);
+			});
+		}
+	}
+
+	// Parses a "DD-Mon" or "DD-Mon-YYYY" due date against today.
+	// Year is inferred as the current year when absent.
+	private isOverdue(due: string): boolean {
+		const iso = this.dueToISO(due);
+		if (!iso) return false;
+		const [y, mo, d] = iso.split("-").map(Number);
+		const now = new Date();
+		const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+		return new Date(y, mo - 1, d) < today;
+	}
+
+	private static readonly MONTHS = [
+		"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+		"Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+	];
+
+	// "DD-Mon" / "DD-Mon-YYYY" → "YYYY-MM-DD" for the native date input.
+	private dueToISO(due: string): string | null {
+		const m = due.match(/^(\d{1,2})-([A-Za-z]{3,})(?:-(\d{4}))?$/);
+		if (!m) return null;
+		const monthIdx = AgentBoardView.MONTHS.findIndex(
+			(mo) => mo.toLowerCase() === m[2].slice(0, 3).toLowerCase()
+		);
+		if (monthIdx < 0) return null;
+		const year = m[3] ? parseInt(m[3], 10) : new Date().getFullYear();
+		const pad = (n: number) => String(n).padStart(2, "0");
+		return `${year}-${pad(monthIdx + 1)}-${pad(parseInt(m[1], 10))}`;
+	}
+
+	// "YYYY-MM-DD" (native input) → "DD-Mon-YYYY" for the MD file.
+	private isoToDue(iso: string): string {
+		const [y, mo, d] = iso.split("-").map(Number);
+		const pad = (n: number) => String(n).padStart(2, "0");
+		return `${pad(d)}-${AgentBoardView.MONTHS[mo - 1]}-${y}`;
+	}
+
+	private renderScoreSeg(
+		box: HTMLElement,
+		label: string,
+		value: string,
+		level: Level,
+		onClick: (e: MouseEvent) => void
+	) {
+		const seg = box.createEl("span", {
+			text: `${label}:${value}`,
+			cls: `todo-score todo-score-${level} todo-score-editable`,
+		});
+		seg.addEventListener("click", (e) => {
+			e.stopPropagation();
+			onClick(e);
+		});
+	}
+
+	// ── Score / due editors ──────────────────────────────────────────
+
+	private showScoreMenu(
+		event: MouseEvent,
+		theme: TodoTheme,
+		task: TodoTask,
+		field: "U" | "I" | "E"
+	) {
+		const menu = new Menu();
+		const options =
+			field === "E"
+				? [
+					{ value: "S", label: "S — small" },
+					{ value: "M", label: "M — medium" },
+					{ value: "L", label: "L — large" },
+				]
+				: [
+					{ value: "1", label: "1 — low" },
+					{ value: "2", label: "2 — medium" },
+					{ value: "3", label: "3 — high" },
+				];
+		const current =
+			field === "U"
+				? String(task.urgency ?? "")
+				: field === "I"
+				? String(task.importance ?? "")
+				: task.effort ?? "";
+
+		for (const opt of options) {
+			menu.addItem((item) =>
+				item
+					.setTitle(opt.label)
+					.setChecked(opt.value === current)
+					.onClick(async () => {
+						if (opt.value === current) return;
+						const update =
+							field === "U"
+								? { u: parseInt(opt.value, 10) }
+								: field === "I"
+								? { i: parseInt(opt.value, 10) }
+								: { e: opt.value as Effort };
+						await this.updateAttributes(theme, task, update);
+					})
+			);
+		}
+		menu.showAtMouseEvent(event);
+	}
+
+	// A custom, theme-matched calendar popover. Built in-house rather than
+	// using a native <input type="date">, whose showPicker() is unreliable
+	// inside Obsidian's Electron shell.
+	private showDatePicker(
+		anchor: HTMLElement,
+		theme: TodoTheme,
+		task: TodoTask
+	) {
+		// Only one picker at a time
+		document.querySelectorAll(".todo-cal-popover").forEach((el) => el.remove());
+
+		const popover = document.createElement("div");
+		popover.className = "todo-cal-popover";
+		document.body.appendChild(popover);
+
+		const today = new Date();
+		const iso = task.due ? this.dueToISO(task.due) : null;
+		const sel = iso
+			? (() => {
+				const [y, m, d] = iso.split("-").map(Number);
+				return { y, m: m - 1, d };
+			})()
+			: null;
+
+		let viewYear = sel ? sel.y : today.getFullYear();
+		let viewMonth = sel ? sel.m : today.getMonth(); // 0-based
+
+		let done = false;
+		const close = () => {
+			if (done) return;
+			done = true;
+			document.removeEventListener("mousedown", onOutside, true);
+			document.removeEventListener("keydown", onKey, true);
+			popover.remove();
+		};
+		const commit = async (due: string) => {
+			close();
+			await this.updateAttributes(theme, task, { due });
+		};
+		const onOutside = (e: MouseEvent) => {
+			if (!popover.contains(e.target as Node)) close();
+		};
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === "Escape") close();
+		};
+
+		const el = (tag: string, cls?: string, text?: string): HTMLElement => {
+			const e = document.createElement(tag);
+			if (cls) e.className = cls;
+			if (text != null) e.textContent = text;
+			return e;
+		};
+		const pad = (n: number) => String(n).padStart(2, "0");
+
+		const render = () => {
+			popover.textContent = "";
+
+			// Header: ‹  Month YYYY  ›
+			const header = el("div", "todo-cal-header");
+			const prev = el("button", "todo-cal-nav", "‹");
+			const label = el(
+				"span",
+				"todo-cal-label",
+				`${AgentBoardView.MONTHS[viewMonth]} ${viewYear}`
+			);
+			const next = el("button", "todo-cal-nav", "›");
+			prev.addEventListener("click", () => {
+				if (--viewMonth < 0) { viewMonth = 11; viewYear--; }
+				render();
+			});
+			next.addEventListener("click", () => {
+				if (++viewMonth > 11) { viewMonth = 0; viewYear++; }
+				render();
+			});
+			header.append(prev, label, next);
+			popover.append(header);
+
+			// Weekday row (Monday-first)
+			const dow = el("div", "todo-cal-grid todo-cal-dow");
+			for (const d of ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]) {
+				dow.append(el("span", "todo-cal-dowcell", d));
+			}
+			popover.append(dow);
+
+			// Day grid
+			const grid = el("div", "todo-cal-grid");
+			const firstDow = new Date(viewYear, viewMonth, 1).getDay(); // 0=Sun
+			const offset = (firstDow + 6) % 7; // blanks before day 1 (Mon-first)
+			const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+
+			for (let i = 0; i < offset; i++) {
+				grid.append(el("span", "todo-cal-cell todo-cal-empty"));
+			}
+			for (let day = 1; day <= daysInMonth; day++) {
+				const cell = el("button", "todo-cal-cell", String(day));
+				const isToday =
+					viewYear === today.getFullYear() &&
+					viewMonth === today.getMonth() &&
+					day === today.getDate();
+				const isSel =
+					sel && sel.y === viewYear && sel.m === viewMonth && sel.d === day;
+				if (isToday) cell.addClass("todo-cal-today");
+				if (isSel) cell.addClass("todo-cal-selected");
+				cell.addEventListener("click", () =>
+					commit(`${pad(day)}-${AgentBoardView.MONTHS[viewMonth]}-${viewYear}`)
+				);
+				grid.append(cell);
+			}
+			popover.append(grid);
+
+			// Footer: Today + Clear
+			const footer = el("div", "todo-cal-footer");
+			const todayBtn = el("button", "todo-cal-action", "Today");
+			todayBtn.addEventListener("click", () =>
+				commit(
+					`${pad(today.getDate())}-${AgentBoardView.MONTHS[today.getMonth()]}-${today.getFullYear()}`
+				)
+			);
+			footer.append(todayBtn);
+			if (task.due) {
+				const clearBtn = el("button", "todo-cal-action", "Clear");
+				clearBtn.addEventListener("click", () => commit("-"));
+				footer.append(clearBtn);
+			}
+			popover.append(footer);
+		};
+
+		render();
+
+		// Position under the anchor, nudged on-screen if it overflows
+		const rect = anchor.getBoundingClientRect();
+		popover.style.top = `${rect.bottom + 4}px`;
+		popover.style.left = `${rect.left}px`;
+		requestAnimationFrame(() => {
+			const pr = popover.getBoundingClientRect();
+			if (pr.right > window.innerWidth - 4) {
+				popover.style.left = `${Math.max(4, window.innerWidth - pr.width - 4)}px`;
+			}
+			if (pr.bottom > window.innerHeight - 4) {
+				popover.style.top = `${Math.max(4, rect.top - pr.height - 4)}px`;
+			}
+		});
+
+		// Defer global listeners so the opening click doesn't dismiss it
+		setTimeout(() => {
+			document.addEventListener("mousedown", onOutside, true);
+			document.addEventListener("keydown", onKey, true);
+		}, 0);
+	}
+
+	// Higher urgency/importance = more attention → red
+	private levelForValue(value: number): Level {
+		if (value >= 3) return "red";
+		if (value === 2) return "amber";
+		return "green";
+	}
+
+	// More effort = harder → red
+	private levelForEffort(effort: Effort): Level {
+		if (effort === "L") return "red";
+		if (effort === "M") return "amber";
+		return "green";
 	}
 
 	// ── Context menu ─────────────────────────────────────────────────
@@ -557,15 +987,15 @@ class AgentBoardView extends ItemView {
 	}
 
 	private showEditInput(
-		taskEl: HTMLElement,
+		host: HTMLElement,
 		theme: TodoTheme,
 		task: TodoTask,
 		textSpan: HTMLElement
 	) {
-		if (taskEl.querySelector(".todo-edit-input")) return;
+		if (host.querySelector(".todo-edit-input")) return;
 		textSpan.style.display = "none";
 
-		const input = taskEl.createEl("input", {
+		const input = host.createEl("input", {
 			cls: "todo-edit-input",
 		}) as HTMLInputElement;
 		input.type = "text";
@@ -690,6 +1120,84 @@ class AgentBoardView extends ItemView {
 
 	// ── File mutations ────────────────────────────────────────────────
 
+	// Rebuilds a task line, re-appending its attribute block if present.
+	private buildTaskLine(
+		completed: boolean,
+		text: string,
+		attr: string
+	): string {
+		const prefix = completed ? "- [x] " : "- [ ] ";
+		return prefix + text + (attr ? " " + attr : "");
+	}
+
+	// Parses "[U:3 I:2 T:5 E:M Due:30-Jun Crit:Y]" into an ordered key→value map.
+	private parseAttrMap(attr: string): Map<string, string> {
+		const map = new Map<string, string>();
+		const inner = attr.replace(/^\[|\]$/g, "").trim();
+		for (const token of inner.split(/\s+/)) {
+			const idx = token.indexOf(":");
+			if (idx > 0) map.set(token.slice(0, idx), token.slice(idx + 1));
+		}
+		return map;
+	}
+
+	// Serializes an attribute map back to "[...]" in a canonical key order.
+	private serializeAttr(map: Map<string, string>): string {
+		const order = ["U", "I", "T", "E", "Due", "Crit", "UsrEdit"];
+		const keys = [
+			...order.filter((k) => map.has(k)),
+			...[...map.keys()].filter((k) => !order.includes(k)),
+		];
+		return "[" + keys.map((k) => `${k}:${map.get(k)}`).join(" ") + "]";
+	}
+
+	// Applies user edits to U/I/E/Due, recomputes T and Crit, and stamps
+	// UsrEdit:Y so the agent leaves user-set values alone.
+	private async updateAttributes(
+		theme: TodoTheme,
+		task: TodoTask,
+		updates: { u?: number; i?: number; e?: Effort; due?: string }
+	) {
+		const file = await this.getTodoFile();
+		if (!file) return;
+
+		const content = await this.app.vault.read(file);
+		const freshThemes = this.parseContent(content);
+		const freshTheme = freshThemes.find((t) => t.name === theme.name);
+		if (!freshTheme) return;
+
+		const fresh = freshTheme.tasks.find(
+			(t) => t.text === task.text && t.completed === task.completed
+		);
+		if (!fresh) return;
+
+		const map = this.parseAttrMap(fresh.attr);
+
+		if (updates.u !== undefined) map.set("U", String(updates.u));
+		if (updates.i !== undefined) map.set("I", String(updates.i));
+		if (updates.e !== undefined) map.set("E", updates.e);
+		if (updates.due !== undefined) map.set("Due", updates.due);
+
+		// Recompute Total and Critical whenever both U and I are known
+		const u = parseInt(map.get("U") ?? "", 10);
+		const i = parseInt(map.get("I") ?? "", 10);
+		if (!isNaN(u) && !isNaN(i)) {
+			map.set("T", String(u + i));
+			map.set("Crit", u >= 2 && i >= 2 ? "Y" : "N");
+		}
+
+		// Mark as user-edited so the generating agent won't overwrite it
+		map.set("UsrEdit", "Y");
+
+		const lines = content.split("\n");
+		lines[fresh.lineNumber] = this.buildTaskLine(
+			fresh.completed,
+			fresh.text,
+			this.serializeAttr(map)
+		);
+		await this.app.vault.modify(file, lines.join("\n"));
+	}
+
 	private async toggleTask(
 		themeName: string,
 		taskText: string,
@@ -709,9 +1217,11 @@ class AgentBoardView extends ItemView {
 		if (!task) return;
 
 		const lines = content.split("\n");
-		const newPrefix = wasCompleted ? "- [ ] " : "- [x] ";
-		const criticalSuffix = task.critical ? " (Critical)" : "";
-		lines[task.lineNumber] = newPrefix + task.text + criticalSuffix;
+		lines[task.lineNumber] = this.buildTaskLine(
+			!wasCompleted,
+			task.text,
+			task.attr
+		);
 		await this.app.vault.modify(file, lines.join("\n"));
 	}
 
@@ -735,10 +1245,12 @@ class AgentBoardView extends ItemView {
 		if (!task) return;
 
 		const lines = content.split("\n");
-		const prefix = wasCompleted ? "- [x] " : "- [ ] ";
-		// Preserve critical status from the fresh parse
-		const criticalSuffix = task.critical ? " (Critical)" : "";
-		lines[task.lineNumber] = prefix + newText + criticalSuffix;
+		// Preserve the attribute block from the fresh parse
+		lines[task.lineNumber] = this.buildTaskLine(
+			wasCompleted,
+			newText,
+			task.attr
+		);
 		await this.app.vault.modify(file, lines.join("\n"));
 	}
 
@@ -786,11 +1298,17 @@ class AgentBoardView extends ItemView {
 		);
 		if (!task) return;
 
+		// Flip Crit and stamp UsrEdit:Y so the agent won't recompute it
+		const map = this.parseAttrMap(task.attr);
+		map.set("Crit", wasCritical ? "N" : "Y");
+		map.set("UsrEdit", "Y");
+
 		const lines = content.split("\n");
-		const prefix = wasCompleted ? "- [x] " : "- [ ] ";
-		lines[task.lineNumber] = wasCritical
-			? prefix + task.text
-			: prefix + task.text + " (Critical)";
+		lines[task.lineNumber] = this.buildTaskLine(
+			wasCompleted,
+			task.text,
+			this.serializeAttr(map)
+		);
 		await this.app.vault.modify(file, lines.join("\n"));
 	}
 
