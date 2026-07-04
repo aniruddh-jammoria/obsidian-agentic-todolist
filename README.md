@@ -26,16 +26,15 @@ Last updated on: 04-Jul-2026 22:15
 ## Health
 About: Physical and mental wellbeing.
 
-- [ ] Claim insurance for tooth implant [U:3 I:3 T:6 E:M Due:30-Jun-2026 Crit:Y]
-- [ ] Schedule teeth cleaning [U:2 I:2 T:4 E:S Due:- Crit:Y]
-- [ ] Start stretching routine [U:1 I:2 T:3 E:S Due:- Crit:N]
-- [x] Book ADHD assessment [U:3 I:3 T:6 E:S Due:- Crit:Y]
+- [ ] Book dentist appointment for checkup and cleaning [U:2 I:2 T:4 E:S Due:18-Jul-2026 Crit:Y]
+- [ ] Look up beginner stretching routines [U:1 I:2 T:3 E:S Due:- Crit:N]
+- [x] Start a daily 10-minute walk habit [U:2 I:3 T:5 E:S Due:- Crit:Y]
 
 ## Finance
 About: Money, banking, and investments.
 
-- [ ] Update home address at all banks [U:2 I:3 T:5 E:M Due:31-Jul-2026 Crit:Y]
-- [ ] Open a brokerage account [U:1 I:2 T:3 E:M Due:- Crit:N]
+- [ ] Update address on file with all banks [U:2 I:3 T:5 E:M Due:31-Jul-2026 Crit:Y]
+- [ ] Set up a recurring ETF investment account [U:1 I:2 T:3 E:M Due:- Crit:N]
 ```
 
 ### Structure
