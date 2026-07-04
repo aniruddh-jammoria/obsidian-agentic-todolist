@@ -59,14 +59,14 @@ export default class AgentBoardPlugin extends Plugin {
 		);
 
 		this.addRibbonIcon("check-square", "Open AgentBoard", () => {
-			this.activateView();
+			void this.activateView();
 		});
 
 		this.addCommand({
-			id: "open-agent-board",
-			name: "Open AgentBoard",
+			id: "open-board",
+			name: "Open board",
 			callback: () => {
-				this.activateView();
+				void this.activateView();
 			},
 		});
 
@@ -78,17 +78,18 @@ export default class AgentBoardPlugin extends Plugin {
 		const leaves = workspace.getLeavesOfType(VIEW_TYPE_AGENT_BOARD);
 
 		if (leaves.length > 0) {
-			workspace.revealLeaf(leaves[0]);
+			void workspace.revealLeaf(leaves[0]);
 			return;
 		}
 
 		const leaf = workspace.getLeaf("tab");
 		await leaf.setViewState({ type: VIEW_TYPE_AGENT_BOARD, active: true });
-		workspace.revealLeaf(leaf);
+		void workspace.revealLeaf(leaf);
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		const data = (await this.loadData()) as Partial<AgentBoardSettings> | null;
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
 	}
 
 	async saveSettings() {
@@ -136,6 +137,11 @@ class AgentBoardView extends ItemView {
 			this.plugin.settings.todoFilePath
 		);
 		return f instanceof TFile ? f : null;
+	}
+
+	private async openSourceFile() {
+		const f = await this.getTodoFile();
+		if (f) await this.app.workspace.getLeaf(false).openFile(f);
 	}
 
 	// Pulls the "Last updated on: ..." line, if present, from anywhere
@@ -272,9 +278,8 @@ class AgentBoardView extends ItemView {
 		const container = this.contentEl;
 
 		// Preserve horizontal scroll position across re-renders
-		const existingBoard = container.querySelector(
-			".todo-board"
-		) as HTMLElement | null;
+		const existingBoard =
+			container.querySelector<HTMLElement>(".todo-board");
 		const savedScrollLeft = existingBoard ? existingBoard.scrollLeft : 0;
 
 		container.empty();
@@ -293,9 +298,8 @@ class AgentBoardView extends ItemView {
 			cls: "todo-board-file-link",
 			attr: { title: filePath },
 		});
-		fileLink.addEventListener("click", async () => {
-			const f = await this.getTodoFile();
-			if (f) await this.app.workspace.getLeaf(false).openFile(f);
+		fileLink.addEventListener("click", () => {
+			void this.openSourceFile();
 		});
 
 		// ── Board ────────────────────────────────────────────────────
@@ -328,7 +332,7 @@ class AgentBoardView extends ItemView {
 		}
 
 		// Restore scroll after layout is painted
-		requestAnimationFrame(() => {
+		window.requestAnimationFrame(() => {
 			board.scrollLeft = savedScrollLeft;
 		});
 	}
@@ -371,7 +375,7 @@ class AgentBoardView extends ItemView {
 		dragHandle.addEventListener("dragstart", (e) => {
 			e.dataTransfer?.setData("text/plain", theme.name);
 			// Tiny delay so the drag ghost captures the unmodified column
-			setTimeout(() => column.addClass("todo-column-dragging"), 0);
+			window.setTimeout(() => column.addClass("todo-column-dragging"), 0);
 		});
 		dragHandle.addEventListener("dragend", () => {
 			column.removeClass("todo-column-dragging");
@@ -390,9 +394,9 @@ class AgentBoardView extends ItemView {
 				column.removeClass("todo-column-drag-over");
 			}
 		});
-		column.addEventListener("drop", async (e) => {
+		column.addEventListener("drop", (e) => {
 			e.preventDefault();
-			column.classList.remove("todo-column-drag-over");
+			column.removeClass("todo-column-drag-over");
 
 			const draggedName = e.dataTransfer?.getData("text/plain");
 			if (!draggedName || draggedName === theme.name) return;
@@ -408,8 +412,10 @@ class AgentBoardView extends ItemView {
 			currentOrder.splice(adjustedToIdx, 0, draggedName);
 
 			this.plugin.settings.columnOrder = currentOrder;
-			await this.plugin.saveSettings();
-			await this.render();
+			void (async () => {
+				await this.plugin.saveSettings();
+				await this.render();
+			})();
 		});
 
 		// Open tasks
@@ -455,11 +461,11 @@ class AgentBoardView extends ItemView {
 
 		const checkbox = taskEl.createEl("input", {
 			cls: "todo-checkbox",
-		}) as HTMLInputElement;
-		checkbox.type = "checkbox";
+			type: "checkbox",
+		});
 		checkbox.checked = task.completed;
-		checkbox.addEventListener("change", async () => {
-			await this.toggleTask(theme.name, task.text, task.completed);
+		checkbox.addEventListener("change", () => {
+			void this.toggleTask(theme.name, task.text, task.completed);
 		});
 
 		// Body holds the text line and the metadata row (scores + due date)
@@ -688,7 +694,7 @@ class AgentBoardView extends ItemView {
 				item
 					.setTitle(opt.label)
 					.setChecked(opt.value === current)
-					.onClick(async () => {
+					.onClick(() => {
 						if (opt.value === current) return;
 						const update =
 							field === "U"
@@ -696,7 +702,7 @@ class AgentBoardView extends ItemView {
 								: field === "I"
 								? { i: parseInt(opt.value, 10) }
 								: { e: opt.value as Effort };
-						await this.updateAttributes(theme, task, update);
+						void this.updateAttributes(theme, task, update);
 					})
 			);
 		}
@@ -712,11 +718,11 @@ class AgentBoardView extends ItemView {
 		task: TodoTask
 	) {
 		// Only one picker at a time
-		document.querySelectorAll(".todo-cal-popover").forEach((el) => el.remove());
+		activeDocument.querySelectorAll(".todo-cal-popover").forEach((el) => el.remove());
 
-		const popover = document.createElement("div");
+		const popover = activeDocument.createElement("div");
 		popover.className = "todo-cal-popover";
-		document.body.appendChild(popover);
+		activeDocument.body.appendChild(popover);
 
 		const today = new Date();
 		const iso = task.due ? this.dueToISO(task.due) : null;
@@ -734,8 +740,8 @@ class AgentBoardView extends ItemView {
 		const close = () => {
 			if (done) return;
 			done = true;
-			document.removeEventListener("mousedown", onOutside, true);
-			document.removeEventListener("keydown", onKey, true);
+			activeDocument.removeEventListener("mousedown", onOutside, true);
+			activeDocument.removeEventListener("keydown", onKey, true);
 			popover.remove();
 		};
 		const commit = async (due: string) => {
@@ -750,7 +756,7 @@ class AgentBoardView extends ItemView {
 		};
 
 		const el = (tag: string, cls?: string, text?: string): HTMLElement => {
-			const e = document.createElement(tag);
+			const e = activeDocument.createElement(tag);
 			if (cls) e.className = cls;
 			if (text != null) e.textContent = text;
 			return e;
@@ -834,22 +840,28 @@ class AgentBoardView extends ItemView {
 
 		// Position under the anchor, nudged on-screen if it overflows
 		const rect = anchor.getBoundingClientRect();
-		popover.style.top = `${rect.bottom + 4}px`;
-		popover.style.left = `${rect.left}px`;
-		requestAnimationFrame(() => {
+		popover.setCssStyles({
+			top: `${rect.bottom + 4}px`,
+			left: `${rect.left}px`,
+		});
+		window.requestAnimationFrame(() => {
 			const pr = popover.getBoundingClientRect();
 			if (pr.right > window.innerWidth - 4) {
-				popover.style.left = `${Math.max(4, window.innerWidth - pr.width - 4)}px`;
+				popover.setCssStyles({
+					left: `${Math.max(4, window.innerWidth - pr.width - 4)}px`,
+				});
 			}
 			if (pr.bottom > window.innerHeight - 4) {
-				popover.style.top = `${Math.max(4, rect.top - pr.height - 4)}px`;
+				popover.setCssStyles({
+					top: `${Math.max(4, rect.top - pr.height - 4)}px`,
+				});
 			}
 		});
 
 		// Defer global listeners so the opening click doesn't dismiss it
-		setTimeout(() => {
-			document.addEventListener("mousedown", onOutside, true);
-			document.addEventListener("keydown", onKey, true);
+		window.setTimeout(() => {
+			activeDocument.addEventListener("mousedown", onOutside, true);
+			activeDocument.addEventListener("keydown", onKey, true);
 		}, 0);
 	}
 
@@ -876,8 +888,8 @@ class AgentBoardView extends ItemView {
 			item
 				.setTitle(task.critical ? "Remove critical" : "Mark as critical")
 				.setIcon(task.critical ? "circle" : "alert-circle")
-				.onClick(async () => {
-					await this.toggleCritical(
+				.onClick(() => {
+					void this.toggleCritical(
 						theme.name,
 						task.text,
 						task.completed,
@@ -892,8 +904,8 @@ class AgentBoardView extends ItemView {
 			item
 				.setTitle("Delete task")
 				.setIcon("trash")
-				.onClick(async () => {
-					await this.deleteTask(theme.name, task.text, task.completed);
+				.onClick(() => {
+					void this.deleteTask(theme.name, task.text, task.completed);
 				})
 		);
 
@@ -912,8 +924,8 @@ class AgentBoardView extends ItemView {
 
 		const input = titleEl.createEl("input", {
 			cls: "todo-edit-theme-input",
-		}) as HTMLInputElement;
-		input.type = "text";
+			type: "text",
+		});
 		input.value = theme.name;
 
 		const restore = () => {
@@ -942,11 +954,11 @@ class AgentBoardView extends ItemView {
 			restore();
 		};
 
-		input.addEventListener("keydown", async (e) => {
-			if (e.key === "Enter") await commit();
+		input.addEventListener("keydown", (e) => {
+			if (e.key === "Enter") void commit();
 			else if (e.key === "Escape") cancel();
 		});
-		input.addEventListener("blur", commit);
+		input.addEventListener("blur", () => void commit());
 		input.focus();
 		input.select();
 	}
@@ -956,9 +968,9 @@ class AgentBoardView extends ItemView {
 
 		const input = taskList.createEl("input", {
 			cls: "todo-new-task-input",
-		}) as HTMLInputElement;
-		input.type = "text";
-		input.placeholder = "Type task and press Enter… (use [[ for note links)";
+			type: "text",
+			placeholder: "Type task and press Enter… (use [[ for note links)",
+		});
 
 		const closeWikiDropdown = this.setupWikiLinkAutocomplete(input);
 
@@ -971,9 +983,9 @@ class AgentBoardView extends ItemView {
 			if (text) await this.addTask(theme.name, text);
 		};
 
-		input.addEventListener("keydown", async (e) => {
+		input.addEventListener("keydown", (e) => {
 			if (e.key === "Enter") {
-				await commit();
+				void commit();
 			} else if (e.key === "Escape") {
 				const wasOpen = closeWikiDropdown();
 				if (!wasOpen) {
@@ -982,7 +994,7 @@ class AgentBoardView extends ItemView {
 				}
 			}
 		});
-		input.addEventListener("blur", commit);
+		input.addEventListener("blur", () => void commit());
 		input.focus();
 	}
 
@@ -993,12 +1005,12 @@ class AgentBoardView extends ItemView {
 		textSpan: HTMLElement
 	) {
 		if (host.querySelector(".todo-edit-input")) return;
-		textSpan.style.display = "none";
+		textSpan.addClass("todo-hidden");
 
 		const input = host.createEl("input", {
 			cls: "todo-edit-input",
-		}) as HTMLInputElement;
-		input.type = "text";
+			type: "text",
+		});
 		input.value = task.text;
 
 		const closeWikiDropdown = this.setupWikiLinkAutocomplete(input);
@@ -1009,7 +1021,7 @@ class AgentBoardView extends ItemView {
 			committed = true;
 			const newText = input.value.trim();
 			input.remove();
-			textSpan.style.display = "";
+			textSpan.removeClass("todo-hidden");
 			if (newText && newText !== task.text) {
 				await this.editTask(theme.name, task.text, task.completed, newText);
 			}
@@ -1018,18 +1030,18 @@ class AgentBoardView extends ItemView {
 			if (committed) return;
 			committed = true;
 			input.remove();
-			textSpan.style.display = "";
+			textSpan.removeClass("todo-hidden");
 		};
 
-		input.addEventListener("keydown", async (e) => {
+		input.addEventListener("keydown", (e) => {
 			if (e.key === "Enter") {
-				await commit();
+				void commit();
 			} else if (e.key === "Escape") {
 				const wasOpen = closeWikiDropdown();
 				if (!wasOpen) cancel();
 			}
 		});
-		input.addEventListener("blur", commit);
+		input.addEventListener("blur", () => void commit());
 		input.focus();
 		input.select();
 	}
@@ -1085,15 +1097,17 @@ class AgentBoardView extends ItemView {
 
 			// Recreate dropdown each update to avoid stale item listeners
 			if (dropdown) dropdown.remove();
-			dropdown = document.createElement("div");
+			dropdown = activeDocument.createElement("div");
 			dropdown.className = "todo-wikilink-dropdown";
-			document.body.appendChild(dropdown);
-			dropdown.style.top = `${rect.bottom}px`;
-			dropdown.style.left = `${rect.left}px`;
-			dropdown.style.width = `${rect.width}px`;
+			activeDocument.body.appendChild(dropdown);
+			dropdown.setCssStyles({
+				top: `${rect.bottom}px`,
+				left: `${rect.left}px`,
+				width: `${rect.width}px`,
+			});
 
 			for (const file of files) {
-				const item = document.createElement("div");
+				const item = activeDocument.createElement("div");
 				item.className = "todo-wikilink-dropdown-item";
 				item.textContent = file.basename;
 				item.addEventListener("mousedown", (e) => {
@@ -1378,14 +1392,13 @@ class AgentBoardSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-		containerEl.createEl("h2", { text: "AgentBoard Settings" });
 
 		const datalistId = "todo-board-file-suggestions";
-		const datalist = containerEl.createEl("datalist") as HTMLDataListElement;
+		const datalist = containerEl.createEl("datalist");
 		datalist.id = datalistId;
 		for (const file of this.app.vault.getFiles()) {
 			if (file.extension === "md") {
-				const opt = document.createElement("option");
+				const opt = activeDocument.createElement("option");
 				opt.value = file.path;
 				datalist.appendChild(opt);
 			}
@@ -1410,11 +1423,11 @@ class AgentBoardSettingTab extends PluginSettingTab {
 				});
 			})
 			.addButton((btn) => {
-				btn.setButtonText("Save").setCta().onClick(async () => {
+				btn.setButtonText("Save").setCta().onClick(() => {
 					const path = currentPath.trim();
 					const vaultFile = this.app.vault.getAbstractFileByPath(path);
 					this.plugin.settings.todoFilePath = path;
-					await this.plugin.saveSettings();
+					void this.plugin.saveSettings();
 
 					if (vaultFile instanceof TFile) {
 						statusEl.textContent = "✓ Saved";
@@ -1424,7 +1437,7 @@ class AgentBoardSettingTab extends PluginSettingTab {
 							"✓ Saved — file not found at this path, please check it";
 						statusEl.className = "todo-settings-status todo-status-warning";
 					}
-					setTimeout(() => {
+					window.setTimeout(() => {
 						statusEl.textContent = "";
 						statusEl.className = "todo-settings-status";
 					}, 3000);

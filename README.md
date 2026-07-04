@@ -47,10 +47,10 @@ About: Money, banking, and investments.
 
 ### Task attribute block
 
-Each task line ends with a bracketed block of `Key:Value` tokens. The agent should emit them in this order:
+Each task line ends with a bracketed block of `Key:Value` tokens, emitted in this order (`U I T E Due Crit`):
 
 ```
-[U:<1-3> I:<1-3> T:<2-6> E:<S|M|L> Due:<DD-Mon-YYYY|-> Crit:<Y|N>]
+[U:2 I:3 T:5 E:M Due:31-Jul-2026 Crit:Y]
 ```
 
 | Key | Meaning | Values | Notes |

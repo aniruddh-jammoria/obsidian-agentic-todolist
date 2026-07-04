@@ -4,6 +4,27 @@ Key release notes and insights for AgentBoard.
 
 ---
 
+## 2026-07-05 — v2.0.1 (Community-review fixes)
+
+Addressed the Obsidian community plugin automated review (2.0.0 failed on three errors). No user-facing behavior change.
+
+**Fixes:**
+
+- **`no-unsupported-api`** — raised `minAppVersion` from `0.15.0` to `1.5.0` to match the APIs actually used (`getLeaf("tab")`, `setCssStyles`, etc.).
+- **`no-static-styles-assignment`** — replaced direct `el.style.x = …` with `el.setCssStyles({ … })` for the calendar/dropdown positioning, and a `.todo-hidden` class for inline-edit show/hide.
+- **Settings heading** — removed the `containerEl.createEl("h2", …)` top-level settings header.
+- **Popout-window compatibility** — `document` → `activeDocument`, `setTimeout`/`requestAnimationFrame` → `window.*`.
+- **Floating / misused promises** — event handlers no longer return promises; fire-and-forget calls marked with `void` (or extracted, e.g. `openSourceFile`).
+- **Command id/name** — dropped the plugin prefix (`open-agent-board` → `open-board`, "Open AgentBoard" → "Open board").
+- **Misc lint** — removed unnecessary type assertions; typed `loadData()`; CSS `text-decoration` shorthand and dropped a duplicate `color` (the `color-mix` fallback, no longer needed at minAppVersion 1.5.0).
+- **README** — replaced the `<1-3>`-style angle-bracket notation (flagged as unfilled placeholder text) with a concrete example; the attribute table still documents the ranges.
+
+**Note:**
+
+- Still open (a *recommendation*, not an error): GitHub artifact attestations for release assets. Would require a CI release workflow using `actions/attest-build-provenance`; deferred.
+
+---
+
 ## 2026-07-04 — v2.0.0 (Prioritization, on-board editing & agentic workflow)
 
 A major release turning AgentBoard into the visual half of an agent-driven workflow: an external agentic skill scores tasks into the Markdown file, and the board renders, ranks, and round-trips them. Adds a prioritization attribute format, on-board editing of scores and due dates, a custom calendar, overdue highlighting, and a full docs pass.

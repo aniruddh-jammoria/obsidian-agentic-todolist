@@ -1,3 +1,8 @@
+/* Utility: hide an element (used while inline-editing task text) */
+.todo-hidden {
+	display: none;
+}
+
 /* ── Board wrapper ───────────────────────────────────────────── */
 .todo-board-container {
 	height: 100%;
@@ -109,9 +114,7 @@
 
 /* Dotted underline signals that a tooltip is available */
 .todo-column-title-has-about {
-	text-decoration-line: underline;
-	text-decoration-style: dotted;
-	text-decoration-color: var(--text-muted);
+	text-decoration: underline dotted var(--text-muted);
 	text-underline-offset: 3px;
 	cursor: help;
 }
@@ -442,7 +445,6 @@
 /* Critical task text: gently emphasized, not bright red.
    The muted-red stripe on the row carries the main signal. */
 .todo-task-text-critical {
-	color: #a85a5a; /* fallback for older renderers */
 	color: color-mix(in srgb, var(--color-red, #e03131) 55%, var(--text-muted));
 	font-weight: 600;
 }
