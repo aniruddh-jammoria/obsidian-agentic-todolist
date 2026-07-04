@@ -114,8 +114,8 @@
 
 /* Dotted underline signals that a tooltip is available */
 .todo-column-title-has-about {
-	text-decoration: underline dotted var(--text-muted);
-	text-underline-offset: 3px;
+	border-bottom: 1px dotted var(--text-muted);
+	padding-bottom: 1px;
 	cursor: help;
 }
 

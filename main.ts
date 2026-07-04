@@ -517,7 +517,7 @@ class AgentBoardView extends ItemView {
 			});
 			link.addEventListener("click", (e) => {
 				e.stopPropagation();
-				this.app.workspace.openLinkText(
+				void this.app.workspace.openLinkText(
 					noteName,
 					this.plugin.settings.todoFilePath,
 					false
@@ -633,14 +633,14 @@ class AgentBoardView extends ItemView {
 		);
 		if (monthIdx < 0) return null;
 		const year = m[3] ? parseInt(m[3], 10) : new Date().getFullYear();
-		const pad = (n: number) => String(n).padStart(2, "0");
+		const pad = (n: number): string => (n < 10 ? `0${n}` : `${n}`);
 		return `${year}-${pad(monthIdx + 1)}-${pad(parseInt(m[1], 10))}`;
 	}
 
 	// "YYYY-MM-DD" (native input) → "DD-Mon-YYYY" for the MD file.
 	private isoToDue(iso: string): string {
 		const [y, mo, d] = iso.split("-").map(Number);
-		const pad = (n: number) => String(n).padStart(2, "0");
+		const pad = (n: number): string => (n < 10 ? `0${n}` : `${n}`);
 		return `${pad(d)}-${AgentBoardView.MONTHS[mo - 1]}-${y}`;
 	}
 
@@ -761,7 +761,7 @@ class AgentBoardView extends ItemView {
 			if (text != null) e.textContent = text;
 			return e;
 		};
-		const pad = (n: number) => String(n).padStart(2, "0");
+		const pad = (n: number): string => (n < 10 ? `0${n}` : `${n}`);
 
 		const render = () => {
 			popover.textContent = "";
@@ -812,9 +812,11 @@ class AgentBoardView extends ItemView {
 					sel && sel.y === viewYear && sel.m === viewMonth && sel.d === day;
 				if (isToday) cell.addClass("todo-cal-today");
 				if (isSel) cell.addClass("todo-cal-selected");
-				cell.addEventListener("click", () =>
-					commit(`${pad(day)}-${AgentBoardView.MONTHS[viewMonth]}-${viewYear}`)
-				);
+				cell.addEventListener("click", () => {
+					void commit(
+						`${pad(day)}-${AgentBoardView.MONTHS[viewMonth]}-${viewYear}`
+					);
+				});
 				grid.append(cell);
 			}
 			popover.append(grid);
@@ -822,15 +824,17 @@ class AgentBoardView extends ItemView {
 			// Footer: Today + Clear
 			const footer = el("div", "todo-cal-footer");
 			const todayBtn = el("button", "todo-cal-action", "Today");
-			todayBtn.addEventListener("click", () =>
-				commit(
+			todayBtn.addEventListener("click", () => {
+				void commit(
 					`${pad(today.getDate())}-${AgentBoardView.MONTHS[today.getMonth()]}-${today.getFullYear()}`
-				)
-			);
+				);
+			});
 			footer.append(todayBtn);
 			if (task.due) {
 				const clearBtn = el("button", "todo-cal-action", "Clear");
-				clearBtn.addEventListener("click", () => commit("-"));
+				clearBtn.addEventListener("click", () => {
+					void commit("-");
+				});
 				footer.append(clearBtn);
 			}
 			popover.append(footer);

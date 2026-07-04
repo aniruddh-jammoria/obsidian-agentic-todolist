@@ -4,6 +4,19 @@ Key release notes and insights for AgentBoard.
 
 ---
 
+## 2026-07-05 — v2.0.2 (Community-review fixes, round 2)
+
+Second review pass on 2.0.1. Cleared the one remaining error and the residual warnings.
+
+- **`no-unsupported-api` (the last error)** — `Workspace.revealLeaf` returns `Promise<void>` only `@since 1.7.2`, so raised `minAppVersion` `1.5.0` → `1.7.2`.
+- **CSS `text-decoration`** (partially supported at the scanner's 1.4.5 baseline) — swapped the dotted underline for `border-bottom: 1px dotted`.
+- **Floating/misused promises** — `void`'d `openLinkText`; wrapped the calendar `commit(...)` click handlers so they return void.
+- **`no-unsafe-*`** — rewrote the `pad` date helpers to a typed `(n) => n < 10 ? \`0${n}\` : \`${n}\`` (drops `String(n).padStart`, which the linter typed as unsafe).
+
+Note: the scanner's CSS check is pinned to Obsidian 1.4.5 regardless of `minAppVersion`, so CSS features must clear that baseline.
+
+---
+
 ## 2026-07-05 — v2.0.1 (Community-review fixes)
 
 Addressed the Obsidian community plugin automated review (2.0.0 failed on three errors). No user-facing behavior change.
