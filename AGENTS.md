@@ -28,6 +28,23 @@ Guidance for AI agents working on **AgentBoard**, an Obsidian plugin that render
 - CSS-only edits during `npm run dev` won't auto-copy (esbuild watches only the TS import graph). Save a `.ts` file or run `npm run build` to push a CSS change.
 - **Always run `npm run build` after editing `main.ts` or `styles.css`** so the installed copy stays current, and verify the `sync: copied` line appears.
 
+## Releasing
+
+AgentBoard is an **approved Obsidian community plugin**. Releases are automated by [.github/workflows/release.yml](.github/workflows/release.yml) — do **not** hand-build and drag assets into a release anymore.
+
+Release flow:
+
+1. Bump the version in **`manifest.json`, `package.json`, and `versions.json`** (all three must agree; `versions.json` maps the new version → its `minAppVersion`). Add a dated `DEVELOPMENT_LOG.md` entry.
+2. Commit to `main`, then tag with the **bare version number, no `v` prefix** (e.g. `git tag 2.0.3 && git push origin 2.0.3`).
+3. On the tag push, CI **builds → attests → creates a draft release** with `main.js`, `manifest.json`, `styles.css` attached (and build-provenance attestations, via `actions/attest-build-provenance`).
+4. Add release notes to the draft and **Publish**. Obsidian then offers the update to users automatically (no more submission PRs — that was one-time).
+
+Gotchas:
+- **Let CI own the release.** Don't also create a release manually for the same tag — `gh release create` fails on a duplicate.
+- **`minAppVersion` must cover every API used.** The `no-unsupported-api` review check compares against it; e.g. `Workspace.revealLeaf` returns a Promise only `@since 1.7.2`, which set the current floor. Check an API's `@since` in `node_modules/obsidian/obsidian.d.ts` before using it.
+- **The community review's CSS check is pinned to Obsidian 1.4.5**, independent of `minAppVersion` — CSS features must clear that baseline (e.g. avoid `text-decoration` shorthand; `color-mix` is fine).
+- Release assets are the **three files at the repo root** (`main.js` is gitignored but built in CI); never the auto-generated source zip.
+
 ## Todo file format
 
 > **The format is expected to evolve.** To avoid stale duplication, this file does **not** restate the literal spec (keys, ranges, date shape). Read it from the authoritative sources instead:
@@ -82,7 +99,7 @@ The real working file, `todolist_example_internal.md` (gitignored), contains the
 - **Critical styling** is intentionally muted (left stripe + faint tint + desaturated semibold text via `color-mix`, with a solid fallback color) — not bright red. Don't reintroduce the neon `var(--color-red)` text or the `!` badge.
 - **`README.md` is current** and doubles as the public ingestion contract for the companion agent skill (which is intentionally not in the repo yet — "example skill coming soon"). **`todolist_example.md`** (the committed public sample) is in the current attribute-block format with sanitized, fictional tasks — keep it that way (see [Privacy](#privacy--keep-private-info-out-of-committed-files)).
 - `todolist_example_internal.md` is the real working file (gitignored for privacy) and the best reference for the current format — but its contents are private; never copy them into committed files verbatim.
-- manifest id: `agent-board`; package name: `obsidian-agent-board`. Repo is being prepped for Obsidian community-plugin submission.
+- manifest id: `agent-board`; package name: `obsidian-agent-board`. **Approved and listed in the Obsidian community plugin directory** — updates ship via tagged GitHub releases (see [Releasing](#releasing)).
 
 ## Development log
 
