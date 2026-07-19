@@ -27,6 +27,8 @@ interface TodoTask {
 	due: string | null;         // Due (DD-Mon), null when "-" or absent
 	attr: string;      // raw trailing attribute block incl. [], "" if none
 	lineNumber: number;
+	indent: string;    // leading whitespace, "" for top-level tasks
+	subtasks: TodoTask[];
 }
 
 interface TodoTheme {
@@ -99,6 +101,10 @@ export default class AgentBoardPlugin extends Plugin {
 
 class AgentBoardView extends ItemView {
 	plugin: AgentBoardPlugin;
+
+	// Parents whose subtasks are collapsed, keyed "theme::task text".
+	// In-memory only, so it survives re-renders but resets per session.
+	private collapsedSubtasks = new Set<string>();
 
 	constructor(leaf: WorkspaceLeaf, plugin: AgentBoardPlugin) {
 		super(leaf);
@@ -177,12 +183,12 @@ class AgentBoardView extends ItemView {
 				continue;
 			}
 
-			const m = line.match(/^- \[([ x])\] (.+)$/);
+			const m = line.match(/^([ \t]*)- \[([ x])\] (.+)$/);
 			if (m && current) {
-				const meta = this.parseTaskMeta(m[2]);
-				current.tasks.push({
+				const meta = this.parseTaskMeta(m[3]);
+				const task: TodoTask = {
 					text: meta.text,
-					completed: m[1] === "x",
+					completed: m[2] === "x",
 					critical: meta.critical,
 					urgency: meta.urgency,
 					importance: meta.importance,
@@ -191,7 +197,16 @@ class AgentBoardView extends ItemView {
 					due: meta.due,
 					attr: meta.attr,
 					lineNumber: i,
-				});
+					indent: m[1],
+					subtasks: [],
+				};
+				// An indented task belongs to the preceding top-level task;
+				// an indented line with no parent is treated as top-level.
+				if (m[1].length > 0 && current.tasks.length > 0) {
+					current.tasks[current.tasks.length - 1].subtasks.push(task);
+				} else {
+					current.tasks.push(task);
+				}
 			}
 		}
 
@@ -453,10 +468,11 @@ class AgentBoardView extends ItemView {
 	private renderTask(
 		container: HTMLElement,
 		theme: TodoTheme,
-		task: TodoTask
+		task: TodoTask,
+		parent: TodoTask | null = null
 	) {
 		const taskEl = container.createEl("div", {
-			cls: `todo-task${task.completed ? " todo-task-completed" : ""}${task.critical ? " todo-task-critical" : ""}`,
+			cls: `todo-task${task.completed ? " todo-task-completed" : ""}${task.critical ? " todo-task-critical" : ""}${parent ? " todo-subtask" : ""}`,
 		});
 
 		const checkbox = taskEl.createEl("input", {
@@ -465,7 +481,12 @@ class AgentBoardView extends ItemView {
 		});
 		checkbox.checked = task.completed;
 		checkbox.addEventListener("change", () => {
-			void this.toggleTask(theme.name, task.text, task.completed);
+			void this.toggleTask(
+				theme.name,
+				task.text,
+				task.completed,
+				parent ? parent.text : null
+			);
 		});
 
 		// Body holds the text line and the metadata row (scores + due date)
@@ -478,11 +499,65 @@ class AgentBoardView extends ItemView {
 		if (!task.completed) {
 			textSpan.addClass("todo-task-text-editable");
 			textSpan.addEventListener("dblclick", () => {
-				this.showEditInput(textLine, theme, task, textSpan);
+				this.showEditInput(textLine, theme, task, textSpan, parent);
 			});
 		}
 
-		this.renderTaskMeta(body, theme, task);
+		this.renderTaskMeta(body, theme, task, parent);
+
+		// Subtasks render in an indented list right under their parent;
+		// the (possibly empty) list also hosts the "add subtask" input.
+		let onAddSubtask: (() => void) | null = null;
+		if (!parent) {
+			const subList = container.createEl("div", { cls: "todo-subtask-list" });
+			for (const sub of task.subtasks) {
+				this.renderTask(subList, theme, sub, task);
+			}
+
+			const collapseKey = `${theme.name}::${task.text}`;
+			let expand: () => void = () => {};
+
+			if (task.subtasks.length > 0) {
+				if (this.collapsedSubtasks.has(collapseKey)) {
+					subList.addClass("todo-subtask-list-collapsed");
+				}
+
+				// Icon-only chevron pinned to the card's bottom-right corner
+				const toggle = taskEl.createEl("button", {
+					cls: "todo-subtask-toggle",
+				});
+				const setLabel = () => {
+					const isCollapsed = this.collapsedSubtasks.has(collapseKey);
+					toggle.textContent = isCollapsed ? "▾" : "▴";
+					toggle.title = isCollapsed
+						? `Show subtasks (${task.subtasks.length})`
+						: "Hide subtasks";
+				};
+				setLabel();
+
+				expand = () => {
+					this.collapsedSubtasks.delete(collapseKey);
+					subList.removeClass("todo-subtask-list-collapsed");
+					setLabel();
+				};
+
+				toggle.addEventListener("click", (e) => {
+					e.stopPropagation();
+					if (this.collapsedSubtasks.has(collapseKey)) {
+						expand();
+					} else {
+						this.collapsedSubtasks.add(collapseKey);
+						subList.addClass("todo-subtask-list-collapsed");
+						setLabel();
+					}
+				});
+			}
+
+			onAddSubtask = () => {
+				expand();
+				this.showAddSubtaskInput(theme, task, subList);
+			};
+		}
 
 		// Three-dot menu button — shown only on row hover via CSS
 		const menuBtn = taskEl.createEl("button", {
@@ -492,7 +567,7 @@ class AgentBoardView extends ItemView {
 		});
 		menuBtn.addEventListener("click", (e) => {
 			e.stopPropagation();
-			this.showTaskMenu(e, theme, task);
+			this.showTaskMenu(e, theme, task, parent, onAddSubtask);
 		});
 	}
 
@@ -538,7 +613,8 @@ class AgentBoardView extends ItemView {
 	private renderTaskMeta(
 		body: HTMLElement,
 		theme: TodoTheme,
-		task: TodoTask
+		task: TodoTask,
+		parent: TodoTask | null = null
 	) {
 		const hasScores =
 			task.urgency !== null ||
@@ -546,6 +622,15 @@ class AgentBoardView extends ItemView {
 			task.effort !== null;
 
 		const meta = body.createEl("div", { cls: "todo-meta" });
+
+		if (task.subtasks.length > 0) {
+			const done = task.subtasks.filter((s) => s.completed).length;
+			meta.createEl("span", {
+				text: `${done}/${task.subtasks.length}`,
+				cls: "todo-subtask-progress",
+				attr: { title: "Subtasks completed" },
+			});
+		}
 
 		if (hasScores) {
 			const box = meta.createEl("div", {
@@ -556,21 +641,21 @@ class AgentBoardView extends ItemView {
 				this.renderScoreSeg(
 					box, "U", String(task.urgency),
 					this.levelForValue(task.urgency),
-					(e) => this.showScoreMenu(e, theme, task, "U")
+					(e) => this.showScoreMenu(e, theme, task, "U", parent)
 				);
 			}
 			if (task.importance !== null) {
 				this.renderScoreSeg(
 					box, "I", String(task.importance),
 					this.levelForValue(task.importance),
-					(e) => this.showScoreMenu(e, theme, task, "I")
+					(e) => this.showScoreMenu(e, theme, task, "I", parent)
 				);
 			}
 			if (task.effort !== null) {
 				this.renderScoreSeg(
 					box, "E", task.effort,
 					this.levelForEffort(task.effort),
-					(e) => this.showScoreMenu(e, theme, task, "E")
+					(e) => this.showScoreMenu(e, theme, task, "E", parent)
 				);
 			}
 		}
@@ -591,7 +676,7 @@ class AgentBoardView extends ItemView {
 			duePill.createEl("span", { text: task.due, cls: "todo-due-text" });
 			duePill.addEventListener("click", (e) => {
 				e.stopPropagation();
-				this.showDatePicker(duePill, theme, task);
+				this.showDatePicker(duePill, theme, task, parent);
 			});
 		} else {
 			// No due date yet — a faint calendar icon (visible on hover) to add one
@@ -603,7 +688,7 @@ class AgentBoardView extends ItemView {
 			setIcon(icon, "calendar");
 			addDue.addEventListener("click", (e) => {
 				e.stopPropagation();
-				this.showDatePicker(addDue, theme, task);
+				this.showDatePicker(addDue, theme, task, parent);
 			});
 		}
 	}
@@ -667,7 +752,8 @@ class AgentBoardView extends ItemView {
 		event: MouseEvent,
 		theme: TodoTheme,
 		task: TodoTask,
-		field: "U" | "I" | "E"
+		field: "U" | "I" | "E",
+		parent: TodoTask | null = null
 	) {
 		const menu = new Menu();
 		const options =
@@ -702,7 +788,7 @@ class AgentBoardView extends ItemView {
 								: field === "I"
 								? { i: parseInt(opt.value, 10) }
 								: { e: opt.value as Effort };
-						void this.updateAttributes(theme, task, update);
+						void this.updateAttributes(theme, task, update, parent);
 					})
 			);
 		}
@@ -715,7 +801,8 @@ class AgentBoardView extends ItemView {
 	private showDatePicker(
 		anchor: HTMLElement,
 		theme: TodoTheme,
-		task: TodoTask
+		task: TodoTask,
+		parent: TodoTask | null = null
 	) {
 		// Only one picker at a time
 		activeDocument.querySelectorAll(".todo-cal-popover").forEach((el) => el.remove());
@@ -746,7 +833,7 @@ class AgentBoardView extends ItemView {
 		};
 		const commit = async (due: string) => {
 			close();
-			await this.updateAttributes(theme, task, { due });
+			await this.updateAttributes(theme, task, { due }, parent);
 		};
 		const onOutside = (e: MouseEvent) => {
 			if (!popover.contains(e.target as Node)) close();
@@ -885,8 +972,25 @@ class AgentBoardView extends ItemView {
 
 	// ── Context menu ─────────────────────────────────────────────────
 
-	private showTaskMenu(event: MouseEvent, theme: TodoTheme, task: TodoTask) {
+	private showTaskMenu(
+		event: MouseEvent,
+		theme: TodoTheme,
+		task: TodoTask,
+		parent: TodoTask | null = null,
+		onAddSubtask: (() => void) | null = null
+	) {
 		const menu = new Menu();
+
+		// Subtasks are one level deep only, so the item is parent-only
+		if (!parent && !task.completed && onAddSubtask) {
+			menu.addItem((item) =>
+				item
+					.setTitle("Add subtask")
+					.setIcon("plus")
+					.onClick(onAddSubtask)
+			);
+			menu.addSeparator();
+		}
 
 		menu.addItem((item) =>
 			item
@@ -897,7 +1001,8 @@ class AgentBoardView extends ItemView {
 						theme.name,
 						task.text,
 						task.completed,
-						task.critical
+						task.critical,
+						parent ? parent.text : null
 					);
 				})
 		);
@@ -909,7 +1014,12 @@ class AgentBoardView extends ItemView {
 				.setTitle("Delete task")
 				.setIcon("trash")
 				.onClick(() => {
-					void this.deleteTask(theme.name, task.text, task.completed);
+					void this.deleteTask(
+						theme.name,
+						task.text,
+						task.completed,
+						parent ? parent.text : null
+					);
 				})
 		);
 
@@ -1002,11 +1112,58 @@ class AgentBoardView extends ItemView {
 		input.focus();
 	}
 
+	private showAddSubtaskInput(
+		theme: TodoTheme,
+		parentTask: TodoTask,
+		subList: HTMLElement
+	) {
+		if (subList.querySelector(".todo-new-task-input")) return;
+
+		const input = subList.createEl("input", {
+			cls: "todo-new-task-input todo-new-subtask-input",
+			type: "text",
+			placeholder: "Type subtask and press Enter…",
+		});
+
+		const closeWikiDropdown = this.setupWikiLinkAutocomplete(input);
+
+		let committed = false;
+		const commit = async () => {
+			if (committed) return;
+			committed = true;
+			const text = input.value.trim();
+			input.remove();
+			if (text) {
+				await this.addSubtask(
+					theme.name,
+					parentTask.text,
+					parentTask.completed,
+					text
+				);
+			}
+		};
+
+		input.addEventListener("keydown", (e) => {
+			if (e.key === "Enter") {
+				void commit();
+			} else if (e.key === "Escape") {
+				const wasOpen = closeWikiDropdown();
+				if (!wasOpen) {
+					committed = true;
+					input.remove();
+				}
+			}
+		});
+		input.addEventListener("blur", () => void commit());
+		input.focus();
+	}
+
 	private showEditInput(
 		host: HTMLElement,
 		theme: TodoTheme,
 		task: TodoTask,
-		textSpan: HTMLElement
+		textSpan: HTMLElement,
+		parent: TodoTask | null = null
 	) {
 		if (host.querySelector(".todo-edit-input")) return;
 		textSpan.addClass("todo-hidden");
@@ -1027,7 +1184,13 @@ class AgentBoardView extends ItemView {
 			input.remove();
 			textSpan.removeClass("todo-hidden");
 			if (newText && newText !== task.text) {
-				await this.editTask(theme.name, task.text, task.completed, newText);
+				await this.editTask(
+					theme.name,
+					task.text,
+					task.completed,
+					newText,
+					parent ? parent.text : null
+				);
 			}
 		};
 		const cancel = () => {
@@ -1142,10 +1305,38 @@ class AgentBoardView extends ItemView {
 	private buildTaskLine(
 		completed: boolean,
 		text: string,
-		attr: string
+		attr: string,
+		indent = ""
 	): string {
 		const prefix = completed ? "- [x] " : "- [ ] ";
-		return prefix + text + (attr ? " " + attr : "");
+		return indent + prefix + text + (attr ? " " + attr : "");
+	}
+
+	// Re-finds a task (or subtask, when parentText is given) in a fresh
+	// parse of the file. Returns the task plus its parent, if any.
+	private findFreshTask(
+		themes: TodoTheme[],
+		themeName: string,
+		taskText: string,
+		completed: boolean,
+		parentText: string | null
+	): { task: TodoTask; parent: TodoTask | null } | null {
+		const theme = themes.find((t) => t.name === themeName);
+		if (!theme) return null;
+
+		if (parentText === null) {
+			const task = theme.tasks.find(
+				(t) => t.text === taskText && t.completed === completed
+			);
+			return task ? { task, parent: null } : null;
+		}
+
+		const parent = theme.tasks.find((t) => t.text === parentText);
+		if (!parent) return null;
+		const task = parent.subtasks.find(
+			(t) => t.text === taskText && t.completed === completed
+		);
+		return task ? { task, parent } : null;
 	}
 
 	// Parses "[U:3 I:2 T:5 E:M Due:30-Jun Crit:Y]" into an ordered key→value map.
@@ -1174,20 +1365,23 @@ class AgentBoardView extends ItemView {
 	private async updateAttributes(
 		theme: TodoTheme,
 		task: TodoTask,
-		updates: { u?: number; i?: number; e?: Effort; due?: string }
+		updates: { u?: number; i?: number; e?: Effort; due?: string },
+		parent: TodoTask | null = null
 	) {
 		const file = await this.getTodoFile();
 		if (!file) return;
 
 		const content = await this.app.vault.read(file);
 		const freshThemes = this.parseContent(content);
-		const freshTheme = freshThemes.find((t) => t.name === theme.name);
-		if (!freshTheme) return;
-
-		const fresh = freshTheme.tasks.find(
-			(t) => t.text === task.text && t.completed === task.completed
+		const found = this.findFreshTask(
+			freshThemes,
+			theme.name,
+			task.text,
+			task.completed,
+			parent ? parent.text : null
 		);
-		if (!fresh) return;
+		if (!found) return;
+		const fresh = found.task;
 
 		const map = this.parseAttrMap(fresh.attr);
 
@@ -1211,7 +1405,8 @@ class AgentBoardView extends ItemView {
 		lines[fresh.lineNumber] = this.buildTaskLine(
 			fresh.completed,
 			fresh.text,
-			this.serializeAttr(map)
+			this.serializeAttr(map),
+			fresh.indent
 		);
 		await this.app.vault.modify(file, lines.join("\n"));
 	}
@@ -1219,27 +1414,66 @@ class AgentBoardView extends ItemView {
 	private async toggleTask(
 		themeName: string,
 		taskText: string,
-		wasCompleted: boolean
+		wasCompleted: boolean,
+		parentText: string | null = null
 	) {
 		const file = await this.getTodoFile();
 		if (!file) return;
 
 		const content = await this.app.vault.read(file);
 		const freshThemes = this.parseContent(content);
-		const theme = freshThemes.find((t) => t.name === themeName);
-		if (!theme) return;
-
-		const task = theme.tasks.find(
-			(t) => t.text === taskText && t.completed === wasCompleted
+		const found = this.findFreshTask(
+			freshThemes,
+			themeName,
+			taskText,
+			wasCompleted,
+			parentText
 		);
-		if (!task) return;
+		if (!found) return;
+		const { task, parent } = found;
 
+		const nowCompleted = !wasCompleted;
 		const lines = content.split("\n");
 		lines[task.lineNumber] = this.buildTaskLine(
-			!wasCompleted,
+			nowCompleted,
 			task.text,
-			task.attr
+			task.attr,
+			task.indent
 		);
+
+		if (!parent) {
+			// Toggling a parent cascades its new state to every subtask
+			for (const sub of task.subtasks) {
+				lines[sub.lineNumber] = this.buildTaskLine(
+					nowCompleted,
+					sub.text,
+					sub.attr,
+					sub.indent
+				);
+			}
+		} else if (nowCompleted) {
+			// Completing the last open subtask completes the parent
+			const allDone = parent.subtasks.every(
+				(s) => s === task || s.completed
+			);
+			if (allDone && !parent.completed) {
+				lines[parent.lineNumber] = this.buildTaskLine(
+					true,
+					parent.text,
+					parent.attr,
+					parent.indent
+				);
+			}
+		} else if (parent.completed) {
+			// Reopening a subtask reopens its completed parent
+			lines[parent.lineNumber] = this.buildTaskLine(
+				false,
+				parent.text,
+				parent.attr,
+				parent.indent
+			);
+		}
+
 		await this.app.vault.modify(file, lines.join("\n"));
 	}
 
@@ -1247,27 +1481,31 @@ class AgentBoardView extends ItemView {
 		themeName: string,
 		oldText: string,
 		wasCompleted: boolean,
-		newText: string
+		newText: string,
+		parentText: string | null = null
 	) {
 		const file = await this.getTodoFile();
 		if (!file) return;
 
 		const content = await this.app.vault.read(file);
 		const freshThemes = this.parseContent(content);
-		const theme = freshThemes.find((t) => t.name === themeName);
-		if (!theme) return;
-
-		const task = theme.tasks.find(
-			(t) => t.text === oldText && t.completed === wasCompleted
+		const found = this.findFreshTask(
+			freshThemes,
+			themeName,
+			oldText,
+			wasCompleted,
+			parentText
 		);
-		if (!task) return;
+		if (!found) return;
+		const { task } = found;
 
 		const lines = content.split("\n");
 		// Preserve the attribute block from the fresh parse
 		lines[task.lineNumber] = this.buildTaskLine(
 			wasCompleted,
 			newText,
-			task.attr
+			task.attr,
+			task.indent
 		);
 		await this.app.vault.modify(file, lines.join("\n"));
 	}
@@ -1301,20 +1539,23 @@ class AgentBoardView extends ItemView {
 		themeName: string,
 		taskText: string,
 		wasCompleted: boolean,
-		wasCritical: boolean
+		wasCritical: boolean,
+		parentText: string | null = null
 	) {
 		const file = await this.getTodoFile();
 		if (!file) return;
 
 		const content = await this.app.vault.read(file);
 		const freshThemes = this.parseContent(content);
-		const theme = freshThemes.find((t) => t.name === themeName);
-		if (!theme) return;
-
-		const task = theme.tasks.find(
-			(t) => t.text === taskText && t.completed === wasCompleted
+		const found = this.findFreshTask(
+			freshThemes,
+			themeName,
+			taskText,
+			wasCompleted,
+			parentText
 		);
-		if (!task) return;
+		if (!found) return;
+		const { task } = found;
 
 		// Flip Crit and stamp UsrEdit:Y so the agent won't recompute it
 		const map = this.parseAttrMap(task.attr);
@@ -1325,7 +1566,8 @@ class AgentBoardView extends ItemView {
 		lines[task.lineNumber] = this.buildTaskLine(
 			wasCompleted,
 			task.text,
-			this.serializeAttr(map)
+			this.serializeAttr(map),
+			task.indent
 		);
 		await this.app.vault.modify(file, lines.join("\n"));
 	}
@@ -1333,23 +1575,63 @@ class AgentBoardView extends ItemView {
 	private async deleteTask(
 		themeName: string,
 		taskText: string,
-		wasCompleted: boolean
+		wasCompleted: boolean,
+		parentText: string | null = null
 	) {
 		const file = await this.getTodoFile();
 		if (!file) return;
 
 		const content = await this.app.vault.read(file);
 		const freshThemes = this.parseContent(content);
-		const theme = freshThemes.find((t) => t.name === themeName);
-		if (!theme) return;
-
-		const task = theme.tasks.find(
-			(t) => t.text === taskText && t.completed === wasCompleted
+		const found = this.findFreshTask(
+			freshThemes,
+			themeName,
+			taskText,
+			wasCompleted,
+			parentText
 		);
-		if (!task) return;
+		if (!found) return;
+		const { task } = found;
+
+		// Deleting a parent removes its subtask lines with it
+		const lastLine =
+			task.subtasks.length > 0
+				? task.subtasks[task.subtasks.length - 1].lineNumber
+				: task.lineNumber;
 
 		const lines = content.split("\n");
-		lines.splice(task.lineNumber, 1);
+		lines.splice(task.lineNumber, lastLine - task.lineNumber + 1);
+		await this.app.vault.modify(file, lines.join("\n"));
+	}
+
+	private async addSubtask(
+		themeName: string,
+		parentText: string,
+		parentCompleted: boolean,
+		text: string
+	) {
+		const file = await this.getTodoFile();
+		if (!file) return;
+
+		const content = await this.app.vault.read(file);
+		const freshThemes = this.parseContent(content);
+		const found = this.findFreshTask(
+			freshThemes,
+			themeName,
+			parentText,
+			parentCompleted,
+			null
+		);
+		if (!found) return;
+		const { task: parent } = found;
+
+		const insertAfter =
+			parent.subtasks.length > 0
+				? parent.subtasks[parent.subtasks.length - 1].lineNumber
+				: parent.lineNumber;
+
+		const lines = content.split("\n");
+		lines.splice(insertAfter + 1, 0, `    - [ ] ${text}`);
 		await this.app.vault.modify(file, lines.join("\n"));
 	}
 
@@ -1370,7 +1652,9 @@ class AgentBoardView extends ItemView {
 
 		let insertAfter = theme.headerLineNumber;
 		for (let i = theme.headerLineNumber + 1; i < sectionEnd; i++) {
-			if (lines[i].match(/^- \[[ x]\] /)) {
+			// Indented subtask lines also count, so a new task lands after
+			// the previous task's subtasks instead of between them
+			if (lines[i].match(/^[ \t]*- \[[ x]\] /)) {
 				insertAfter = i;
 			} else if (
 				lines[i].startsWith("About:") &&

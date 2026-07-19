@@ -202,6 +202,64 @@
 	min-width: 0;
 }
 
+/* ── Subtasks ────────────────────────────────────────────────── */
+.todo-subtask-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin-left: 22px;
+	/* Faint guide line ties subtasks to their parent */
+	border-left: 1px solid var(--background-modifier-border);
+	padding-left: 4px;
+}
+
+.todo-subtask-list:empty {
+	display: none;
+}
+
+.todo-subtask-list-collapsed {
+	display: none;
+}
+
+.todo-subtask-toggle {
+	position: absolute;
+	bottom: 2px;
+	right: 4px;
+	padding: 0 2px;
+	margin: 0;
+	border: none;
+	background: none;
+	box-shadow: none;
+	font-size: 11px;
+	line-height: 1;
+	color: var(--text-faint);
+	cursor: pointer;
+}
+
+.todo-subtask-toggle:hover {
+	color: var(--text-muted);
+	background: none;
+	box-shadow: none;
+}
+
+.todo-subtask .todo-task-text {
+	font-size: 12.5px;
+}
+
+.todo-subtask-progress {
+	font-size: 10.5px;
+	font-weight: 600;
+	padding: 1px 6px;
+	border-radius: 8px;
+	color: var(--text-muted);
+	background-color: var(--background-modifier-border);
+}
+
+.todo-new-subtask-input {
+	width: auto;
+	margin-left: 2px;
+}
+
 /* ── Metadata row (scores + due date) ────────────────────────── */
 .todo-meta {
 	display: flex;

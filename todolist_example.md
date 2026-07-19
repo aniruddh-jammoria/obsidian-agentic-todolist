@@ -5,7 +5,9 @@ Last updated on: 04-Jul-2026 22:15
 ## Health
 About: Physical and mental wellbeing tasks.
 
-- [ ] Book dentist appointment for checkup and cleaning [U:2 I:2 T:4 E:S Due:18-Jul-2026 Crit:Y]
+- [ ] Book dentist appointment for checkup and cleaning [U:2 I:2 T:4 E:S Due:26-Jul-2026 Crit:Y UsrEdit:Y]
+    - [ ] Check which dentists are covered by insurance [U:2 I:2 T:4 E:S Due:- Crit:Y]
+    - [ ] Call the practice and pick a slot [U:2 I:2 T:4 E:S Due:18-Jul-2026 Crit:Y]
 - [ ] Look up beginner stretching routines [U:1 I:2 T:3 E:S Due:- Crit:N]
 - [ ] Search for high-protein recipes using tofu [U:1 I:1 T:2 E:S Due:- Crit:N]
 - [x] Start a daily 10-minute walk habit [U:2 I:3 T:5 E:S Due:- Crit:Y]
@@ -38,6 +40,9 @@ About: Things to buy — home, health, and gear.
 About: Upcoming trips and travel planning.
 
 - [ ] Plan summer 2026 trip itinerary [U:3 I:2 T:5 E:M Due:20-Jul-2026 Crit:Y]
+    - [ ] Shortlist destinations and compare costs [U:3 I:2 T:5 E:S Due:14-Jul-2026 Crit:Y]
+    - [ ] Check hotel availability for chosen dates [U:2 I:2 T:4 E:S Due:- Crit:Y]
+    - [x] Agree on travel dates with everyone [U:3 I:2 T:5 E:S Due:- Crit:Y]
 - [ ] Book train tickets to Geneva [U:3 I:2 T:5 E:S Due:12-Jul-2026 Crit:Y]
 - [ ] Research visa requirements for Japan trip [U:1 I:2 T:3 E:S Due:- Crit:N]
 - [x] Renew passport before next trip [U:3 I:3 T:6 E:M Due:- Crit:Y]
@@ -49,11 +54,15 @@ About: Household tasks and life admin.
 - [ ] Shred old documents and paperwork pile [U:1 I:1 T:2 E:M Due:- Crit:N]
 - [ ] Organise digital photo backups by year [U:1 I:2 T:3 E:L Due:- Crit:N]
 - [x] File last year's tax return [U:3 I:3 T:6 E:M Due:- Crit:Y]
+    - [x] Collect income statements and receipts [U:3 I:3 T:6 E:S Due:- Crit:Y]
+    - [x] Submit the return on the tax portal [U:3 I:3 T:6 E:S Due:- Crit:Y]
 
 ## Side Projects
 About: Personal projects and creative pursuits.
 
 - [ ] Write the first blog post draft [U:2 I:2 T:4 E:M Due:- Crit:Y]
 - [ ] Set up a local dev environment for the home automation project [U:1 I:2 T:3 E:L Due:- Crit:N]
+    - [ ] Install Home Assistant in a Docker container [U:1 I:2 T:3 E:M Due:- Crit:N]
+    - [ ] Pair the smart bulbs and test automations [U:1 I:1 T:2 E:S Due:- Crit:N]
 - [ ] Sketch wireframes for the [[recipe app idea]] [U:1 I:1 T:2 E:M Due:- Crit:N]
 - [x] Migrate old notes into Obsidian vault [U:1 I:2 T:3 E:M Due:- Crit:N]
