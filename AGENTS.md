@@ -62,6 +62,8 @@ Shape at a glance (for orientation only — verify against the code): each task 
 - **Manual critical toggle overrides the derived rule** and also sets `UsrEdit` — explicit user action wins.
 - **The attribute block must be distinguishable from `[[wiki-links]]`, `[bracketed text]`, and URLs** in the task text. The detection regex matches a trailing bracket made up *entirely* of known `Key:Value` tokens. Don't loosen it to "must contain a specific key" — that broke round-tripping once an edit could produce a block without that key.
 
+- **Subtasks are one level deep** — an indented task line attaches to the nearest preceding top-level task (`parseContent`). Completion cascades both ways at write time in `toggleTask` (last subtask done ⇢ parent done; parent toggled ⇢ all subtasks follow; subtask reopened ⇢ completed parent reopens). Every mutation resolves subtasks *under their parent* via `findFreshTask`, and each line's original indentation is preserved on write.
+
 Other file conventions:
 - `About:` line under a heading → column tooltip.
 - `Last updated on: <text>` line anywhere → shown right-aligned in the board's file bar (display only; the plugin never writes it).
@@ -78,7 +80,7 @@ Key methods in `AgentBoardView`:
 - Attribute block detection uses a regex that matches a **trailing bracket made up entirely of known `Key:Value` tokens** (`U|I|T|E|Due|Crit|UsrEdit`). This is what keeps `[[wiki-links]]`, `[chapter 2: intro]`, and URLs from being misread as attributes. Don't loosen it back to "must contain `Crit:`" — that broke round-tripping once an edit could produce a block without `Crit` (e.g. add-due-only).
 - Rendering: `renderColumn` → `renderTask` → `renderTaskText` (wiki-links) + `renderTaskMeta` (score box + due pill).
 - Editing UI: `showScoreMenu` (Obsidian `Menu` for U/I/E), `showDatePicker` (a **custom in-house calendar popover** — don't switch back to a native `<input type="date">`/`showPicker()`, which doesn't work in Obsidian's Electron shell), inline double-click text/title edits.
-- File mutations: **every mutation re-reads and re-parses the file fresh, matches the task by `(text, completed)`, edits one line, writes back.** This is deliberate — it survives concurrent external edits. Helpers: `buildTaskLine`, `parseAttrMap`, `serializeAttr` (canonical order), `updateAttributes` (applies U/I/E/Due edits, recomputes T + Crit, stamps `UsrEdit:Y`). `toggleCritical` uses the same map path.
+- File mutations: **every mutation re-reads and re-parses the file fresh, matches the task by `(text, completed)` — scoped under its parent for subtasks, via `findFreshTask` — edits the affected line(s), writes back.** This is deliberate — it survives concurrent external edits. Helpers: `buildTaskLine`, `parseAttrMap`, `serializeAttr` (canonical order), `updateAttributes` (applies U/I/E/Due edits, recomputes T + Crit, stamps `UsrEdit:Y`). `toggleCritical` uses the same map path.
 - `columnOrder` lives in settings, **decoupled from file order** — reordering columns never rewrites the Markdown.
 - Overdue: `isOverdue` + `dueToISO`/`isoToDue` convert between `DD-Mon[-YYYY]` and ISO; open tasks past due get a red outline (completed exempt).
 
@@ -97,7 +99,7 @@ The real working file, `todolist_example_internal.md` (gitignored), contains the
 - **Year inference**: year-less `DD-Mon` dates assume the current year for overdue checks until re-saved with a year via the picker.
 - **`showPicker()`** isn't in the configured DOM lib types — it's cast inline; desktop-only API, degrades to focus-open on mobile.
 - **Critical styling** is intentionally muted (left stripe + faint tint + desaturated semibold text via `color-mix`, with a solid fallback color) — not bright red. Don't reintroduce the neon `var(--color-red)` text or the `!` badge.
-- **`README.md` is current** and doubles as the public ingestion contract for the companion agent skill (which is intentionally not in the repo yet — "example skill coming soon"). **`todolist_example.md`** (the committed public sample) is in the current attribute-block format with sanitized, fictional tasks — keep it that way (see [Privacy](#privacy--keep-private-info-out-of-committed-files)).
+- **`README.md` is current** and doubles as the public ingestion contract for the companion agent skill, which ships in this repo at [skills/agentboard-sync/SKILL.md](skills/agentboard-sync/SKILL.md). The committed skill is a **sanitized template** (placeholder vault path and generic folder names in its Configuration section) — keep personal paths/folders out of it. **`todolist_example.md`** (the committed public sample) is in the current attribute-block format with sanitized, fictional tasks — keep it that way (see [Privacy](#privacy--keep-private-info-out-of-committed-files)).
 - `todolist_example_internal.md` is the real working file (gitignored for privacy) and the best reference for the current format — but its contents are private; never copy them into committed files verbatim.
 - manifest id: `agent-board`; package name: `obsidian-agent-board`. **Approved and listed in the Obsidian community plugin directory** — updates ship via tagged GitHub releases (see [Releasing](#releasing)).
 

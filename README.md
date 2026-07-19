@@ -6,7 +6,7 @@ An Obsidian plugin that renders a Markdown todo file as a Google Tasks–style b
 
 AgentBoard is designed to pair with an **agentic skill**: an AI agent (for example, a Claude Code slash command) captures your brain-dump of tasks and writes them into a single Markdown file in the format described below, scoring each task for urgency, importance, and effort. AgentBoard then visualizes that file as a prioritized board — and any edit you make on the board is written straight back to the Markdown, so the agent and the board stay in lock-step.
 
-> **Companion skill:** an example skill file that produces this format is coming soon. Until then, any agent (or you, by hand) can maintain the file as long as it follows the format below.
+> **Companion skill:** [`skills/agentboard-sync/SKILL.md`](skills/agentboard-sync/SKILL.md) is a ready-to-use Claude Code skill that produces this format — it scans your vault notes for todos, scores them, and keeps the board file ranked. Copy it into `.claude/skills/agentboard-sync/` in your vault (or `~/.claude/skills/`) and edit its Configuration section for your folders. Any other agent (or you, by hand) can maintain the file too, as long as it follows the format below.
 
 ## How it works
 
@@ -35,12 +35,20 @@ About: Money, banking, and investments.
 
 - [ ] Update address on file with all banks [U:2 I:3 T:5 E:M Due:31-Jul-2026 Crit:Y]
 - [ ] Set up a recurring ETF investment account [U:1 I:2 T:3 E:M Due:- Crit:N]
+
+## Travel
+About: Upcoming trips and travel planning.
+
+- [ ] Plan summer trip itinerary [U:3 I:2 T:5 E:M Due:20-Jul-2026 Crit:Y]
+    - [ ] Shortlist destinations and compare costs [U:3 I:2 T:5 E:S Due:14-Jul-2026 Crit:Y]
+    - [x] Agree on travel dates with everyone [U:3 I:2 T:5 E:S Due:- Crit:Y]
 ```
 
 ### Structure
 
 - **Columns** — every `#`, `##`, or `###` heading becomes a column.
 - **Tasks** — `- [ ]` is an open task, `- [x]` is completed. Completed tasks collapse into a foldable section per column.
+- **Subtasks** — an indented task line (4 spaces preferred; any leading spaces or tabs work) belongs to the nearest non-indented task above it. One level of nesting. Subtasks carry the same attribute block as regular tasks.
 - **`About:`** — an optional line directly under a heading; shown as a hover tooltip on the column title.
 - **`Last updated on:`** — an optional line anywhere in the file; shown in the board's top bar. Display only — AgentBoard never rewrites it, so the agent should maintain it.
 - **`[[wiki-links]]`** — render as clickable links inside task text.
@@ -69,12 +77,14 @@ Each task line ends with a bracketed block of `Key:Value` tokens, emitted in thi
 - **Do not emit `UsrEdit`.** It is owned by AgentBoard. Its presence (`UsrEdit:Y`) means the user has manually adjusted that task.
 - **Respect `UsrEdit:Y`.** When regenerating or re-scoring the file, do **not** overwrite the U/I/E/Due/Crit values of any task marked `UsrEdit:Y` — the user's choices win.
 - **Preserve the block order and formatting** so diffs stay clean.
+- **Keep a parent and its subtasks together.** They form one block — subtasks stay indented directly under their parent through any re-ordering.
 
 ### On the board
 
 - The card shows a single `U | I | E` pill with each section colored by value — red (`U`/`I` = 3, `E` = L), amber (= 2, `E` = M), green (= 1, `E` = S).
 - The due date appears with a calendar icon; if it has passed, the date is outlined in red.
 - Critical tasks are marked with a muted red stripe and slightly emphasized text.
+- Subtasks render indented under their parent, which shows a `1/3`-style progress pill and a chevron to collapse/expand them. Completing every subtask completes the parent; completing the parent completes all subtasks.
 
 ## Features
 
@@ -84,6 +94,7 @@ Each task line ends with a bracketed block of `Key:Value` tokens, emitted in thi
 - **Due dates** — shown with a calendar icon; overdue dates are highlighted
 - **Critical tasks** — derived from `Crit`, or toggled manually via the `⋯` menu
 - **Add / edit / delete / complete** tasks directly on the board
+- **Subtasks** — nested one level under a parent, with two-way auto-completion (all subtasks done ⇢ parent done; parent done ⇢ all subtasks done), a progress pill, collapse/expand, and "Add subtask" in the `⋯` menu
 - **Rename & reorder columns** — double-click a title to rename (writes back); drag the `⠿` handle to reorder (board-only, doesn't touch the file)
 - **Wiki-links** — `[[note]]` links render clickable with `[[` autocomplete
 - **Hover descriptions** — `About:` lines become column tooltips
@@ -115,6 +126,8 @@ Open **Settings → AgentBoard** and set the path to your todo Markdown file, re
 - **Edit text** — double-click the task text
 - **Change U / I / E** — click that section of the score pill and pick a value
 - **Set / change a due date** — click the due date (or the faint calendar icon on a task without one)
+- **Add a subtask** — hover a task, click `⋯`, choose **Add subtask**
+- **Collapse subtasks** — click the small chevron at the bottom-right of a parent task
 - **Critical / Delete** — hover a task, click `⋯`, choose from the menu
 - **Rename a column** — double-click the title
 - **Reorder columns** — drag the `⠿` handle

@@ -4,6 +4,28 @@ Key release notes and insights for AgentBoard.
 
 ---
 
+## 2026-07-19 — Subtasks & the agentboard-sync companion skill
+
+Adds one level of task nesting to the board and publishes the long-promised companion skill in-repo.
+
+### Subtasks (parser, board & write-back)
+
+- **Format** — an indented `- [ ]` line (spaces or tabs) attaches to the nearest preceding top-level task; one level deep. Previously indented lines were silently ignored by the parser, so existing files are forward-compatible. Original indentation is preserved on every write so lines round-trip byte-identical.
+- **Completion cascade** — completing the last open subtask completes the parent; toggling a parent cascades its state to all subtasks; unchecking a subtask under a completed parent reopens the parent. Cascade logic lives in `toggleTask`, applied at write time on a fresh parse.
+- **Parent-aware lookups** — all mutations re-find tasks in a fresh parse by text + completed state; subtasks are found *under their parent* (`findFreshTask`) so duplicate texts across parents don't collide.
+- **UI** — subtasks render indented with a guide line under the parent (both open and Completed sections), parents get an `n/m` progress pill, an "Add subtask" item in the three-dot menu (inserts a 4-space-indented line after the parent's last subtask), and an icon-only collapse chevron pinned to the card's bottom-right. Collapse state is in-memory per view (keyed `theme::task text`) — survives re-renders, resets on restart, keeps the file format untouched.
+- **Subtasks are full tasks** — checkbox, inline edit, U/I/E menus, due-date picker, critical toggle, and delete all work; deleting a parent removes its subtask block; "+ Add task" now skips past subtask lines so it can't insert into another task's block.
+
+### agentboard-sync skill
+
+- **Decision: ship the skill at top-level `skills/agentboard-sync/SKILL.md`**, not `.claude/skills/` — it is a distributable artifact for users' own vaults (where their todo file lives), not a dev-time skill for this repo, and the README advertises it. Users copy it into their own `.claude/skills/`.
+- The skill syncs vault notes → board file (`Todo(Category):` lines), scores missing attributes, ranks sections by T, and understands nested files (file → parent task, todos → subtasks) plus parent attribute derivation from subtasks.
+- Sanitized before commit: real vault path, personal folder structure, and therapy-related aliases replaced with generic examples (numeric-prefix folder kept so the prefix-stripping rule stays illustrated).
+
+**Outcome:** build + type-check clean; parser smoke-tested against `todolist_example.md` (4 parents, correct subtask counts). Started `CHANGELOG.md` (Keep a Changelog). Open: version bump/release for the subtask feature not yet cut; `Ideas.md` remains untracked scratch.
+
+---
+
 ## 2026-07-05 — v2.0.2 (Community-review fixes, round 2)
 
 Second review pass on 2.0.1. Cleared the one remaining error and the residual warnings.
