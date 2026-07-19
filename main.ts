@@ -283,8 +283,9 @@ class AgentBoardView extends ItemView {
 			if (t) ordered.push(t);
 		}
 		// Append any themes not yet in saved order (newly added sections)
+		// (indexOf, not includes — Array.includes isn't in the ES6 lib)
 		for (const t of themes) {
-			if (!order.includes(t.name)) ordered.push(t);
+			if (order.indexOf(t.name) === -1) ordered.push(t);
 		}
 		return ordered;
 	}
@@ -303,8 +304,8 @@ class AgentBoardView extends ItemView {
 		// ── File bar ────────────────────────────────────────────────
 		const filePath = this.plugin.settings.todoFilePath;
 		const baseName = filePath.split(/[/\\]/).pop() ?? filePath;
-		const fileBar = container.createEl("div", { cls: "todo-board-file-bar" });
-		fileBar.createEl("span", {
+		const fileBar = container.createDiv({ cls: "todo-board-file-bar" });
+		fileBar.createSpan({
 			text: "Source: ",
 			cls: "todo-board-file-label",
 		});
@@ -320,7 +321,7 @@ class AgentBoardView extends ItemView {
 		// ── Board ────────────────────────────────────────────────────
 		const file = await this.getTodoFile();
 		if (!file) {
-			container.createEl("div", {
+			container.createDiv({
 				text: "Target MD file with todo list not found. Configure the path in Settings > AgentBoard",
 				cls: "todo-board-error",
 			});
@@ -332,7 +333,7 @@ class AgentBoardView extends ItemView {
 		// Show the file's "Last updated on: ..." line, if it has one
 		const lastUpdated = this.parseLastUpdated(content);
 		if (lastUpdated) {
-			fileBar.createEl("span", {
+			fileBar.createSpan({
 				text: `Last updated: ${lastUpdated}`,
 				cls: "todo-board-file-updated",
 			});
@@ -341,7 +342,7 @@ class AgentBoardView extends ItemView {
 		const themes = this.parseContent(content);
 		const orderedThemes = this.getOrderedThemes(themes);
 
-		const board = container.createEl("div", { cls: "todo-board" });
+		const board = container.createDiv({ cls: "todo-board" });
 		for (const theme of orderedThemes) {
 			this.renderColumn(board, theme, orderedThemes);
 		}
@@ -359,15 +360,15 @@ class AgentBoardView extends ItemView {
 		theme: TodoTheme,
 		orderedThemes: TodoTheme[]
 	) {
-		const column = board.createEl("div", { cls: "todo-column" });
+		const column = board.createDiv({ cls: "todo-column" });
 
 		const openTasks = theme.tasks.filter((t) => !t.completed);
 		const completedTasks = theme.tasks.filter((t) => t.completed);
 
 		// Header row: drag handle + title
-		const header = column.createEl("div", { cls: "todo-column-header" });
+		const header = column.createDiv({ cls: "todo-column-header" });
 
-		const dragHandle = header.createEl("span", {
+		const dragHandle = header.createSpan({
 			text: "⠿",
 			cls: "todo-column-drag-handle",
 			attr: { title: "Drag to reorder" },
@@ -434,7 +435,7 @@ class AgentBoardView extends ItemView {
 		});
 
 		// Open tasks
-		const taskList = column.createEl("div", { cls: "todo-task-list" });
+		const taskList = column.createDiv({ cls: "todo-task-list" });
 		for (const task of openTasks) {
 			this.renderTask(taskList, theme, task);
 		}
@@ -471,7 +472,7 @@ class AgentBoardView extends ItemView {
 		task: TodoTask,
 		parent: TodoTask | null = null
 	) {
-		const taskEl = container.createEl("div", {
+		const taskEl = container.createDiv({
 			cls: `todo-task${task.completed ? " todo-task-completed" : ""}${task.critical ? " todo-task-critical" : ""}${parent ? " todo-subtask" : ""}`,
 		});
 
@@ -490,9 +491,9 @@ class AgentBoardView extends ItemView {
 		});
 
 		// Body holds the text line and the metadata row (scores + due date)
-		const body = taskEl.createEl("div", { cls: "todo-task-body" });
+		const body = taskEl.createDiv({ cls: "todo-task-body" });
 
-		const textLine = body.createEl("div", { cls: "todo-task-text-line" });
+		const textLine = body.createDiv({ cls: "todo-task-text-line" });
 
 		const textSpan = this.renderTaskText(textLine, task);
 
@@ -509,7 +510,7 @@ class AgentBoardView extends ItemView {
 		// the (possibly empty) list also hosts the "add subtask" input.
 		let onAddSubtask: (() => void) | null = null;
 		if (!parent) {
-			const subList = container.createEl("div", { cls: "todo-subtask-list" });
+			const subList = container.createDiv({ cls: "todo-subtask-list" });
 			for (const sub of task.subtasks) {
 				this.renderTask(subList, theme, sub, task);
 			}
@@ -573,7 +574,7 @@ class AgentBoardView extends ItemView {
 
 	// Renders task text with wiki-links as clickable spans
 	private renderTaskText(container: HTMLElement, task: TodoTask): HTMLElement {
-		const span = container.createEl("span", {
+		const span = container.createSpan({
 			cls: `todo-task-text${task.critical ? " todo-task-text-critical" : ""}`,
 		});
 
@@ -621,11 +622,11 @@ class AgentBoardView extends ItemView {
 			task.importance !== null ||
 			task.effort !== null;
 
-		const meta = body.createEl("div", { cls: "todo-meta" });
+		const meta = body.createDiv({ cls: "todo-meta" });
 
 		if (task.subtasks.length > 0) {
 			const done = task.subtasks.filter((s) => s.completed).length;
-			meta.createEl("span", {
+			meta.createSpan({
 				text: `${done}/${task.subtasks.length}`,
 				cls: "todo-subtask-progress",
 				attr: { title: "Subtasks completed" },
@@ -633,7 +634,7 @@ class AgentBoardView extends ItemView {
 		}
 
 		if (hasScores) {
-			const box = meta.createEl("div", {
+			const box = meta.createDiv({
 				cls: "todo-score-box",
 				attr: { title: "Urgency | Importance | Effort — click to change" },
 			});
@@ -663,7 +664,7 @@ class AgentBoardView extends ItemView {
 		if (task.due) {
 			// Overdue dates on still-open tasks get a red outline
 			const overdue = !task.completed && this.isOverdue(task.due);
-			const duePill = meta.createEl("span", {
+			const duePill = meta.createSpan({
 				cls: `todo-due todo-due-editable${overdue ? " todo-due-overdue" : ""}`,
 				attr: {
 					title: overdue
@@ -671,20 +672,20 @@ class AgentBoardView extends ItemView {
 						: `Due ${task.due} (click to change)`,
 				},
 			});
-			const icon = duePill.createEl("span", { cls: "todo-due-icon" });
+			const icon = duePill.createSpan({ cls: "todo-due-icon" });
 			setIcon(icon, "calendar");
-			duePill.createEl("span", { text: task.due, cls: "todo-due-text" });
+			duePill.createSpan({ text: task.due, cls: "todo-due-text" });
 			duePill.addEventListener("click", (e) => {
 				e.stopPropagation();
 				this.showDatePicker(duePill, theme, task, parent);
 			});
 		} else {
 			// No due date yet — a faint calendar icon (visible on hover) to add one
-			const addDue = meta.createEl("span", {
+			const addDue = meta.createSpan({
 				cls: "todo-due todo-due-editable todo-due-empty",
 				attr: { title: "Add due date" },
 			});
-			const icon = addDue.createEl("span", { cls: "todo-due-icon" });
+			const icon = addDue.createSpan({ cls: "todo-due-icon" });
 			setIcon(icon, "calendar");
 			addDue.addEventListener("click", (e) => {
 				e.stopPropagation();
@@ -736,7 +737,7 @@ class AgentBoardView extends ItemView {
 		level: Level,
 		onClick: (e: MouseEvent) => void
 	) {
-		const seg = box.createEl("span", {
+		const seg = box.createSpan({
 			text: `${label}:${value}`,
 			cls: `todo-score todo-score-${level} todo-score-editable`,
 		});
@@ -807,9 +808,9 @@ class AgentBoardView extends ItemView {
 		// Only one picker at a time
 		activeDocument.querySelectorAll(".todo-cal-popover").forEach((el) => el.remove());
 
-		const popover = activeDocument.createElement("div");
-		popover.className = "todo-cal-popover";
-		activeDocument.body.appendChild(popover);
+		const popover = activeDocument.body.createDiv({
+			cls: "todo-cal-popover",
+		});
 
 		const today = new Date();
 		const iso = task.due ? this.dueToISO(task.due) : null;
@@ -842,12 +843,11 @@ class AgentBoardView extends ItemView {
 			if (e.key === "Escape") close();
 		};
 
-		const el = (tag: string, cls?: string, text?: string): HTMLElement => {
-			const e = activeDocument.createElement(tag);
-			if (cls) e.className = cls;
-			if (text != null) e.textContent = text;
-			return e;
-		};
+		const el = (
+			tag: keyof HTMLElementTagNameMap,
+			cls?: string,
+			text?: string
+		): HTMLElement => createEl(tag, { cls, text });
 		const pad = (n: number): string => (n < 10 ? `0${n}` : `${n}`);
 
 		const render = () => {
@@ -1264,9 +1264,9 @@ class AgentBoardView extends ItemView {
 
 			// Recreate dropdown each update to avoid stale item listeners
 			if (dropdown) dropdown.remove();
-			dropdown = activeDocument.createElement("div");
-			dropdown.className = "todo-wikilink-dropdown";
-			activeDocument.body.appendChild(dropdown);
+			dropdown = activeDocument.body.createDiv({
+				cls: "todo-wikilink-dropdown",
+			});
 			dropdown.setCssStyles({
 				top: `${rect.bottom}px`,
 				left: `${rect.left}px`,
@@ -1274,9 +1274,10 @@ class AgentBoardView extends ItemView {
 			});
 
 			for (const file of files) {
-				const item = activeDocument.createElement("div");
-				item.className = "todo-wikilink-dropdown-item";
-				item.textContent = file.basename;
+				const item = dropdown.createDiv({
+					cls: "todo-wikilink-dropdown-item",
+					text: file.basename,
+				});
 				item.addEventListener("mousedown", (e) => {
 					// Prevent input blur so we can update the value first
 					e.preventDefault();
@@ -1355,7 +1356,7 @@ class AgentBoardView extends ItemView {
 		const order = ["U", "I", "T", "E", "Due", "Crit", "UsrEdit"];
 		const keys = [
 			...order.filter((k) => map.has(k)),
-			...[...map.keys()].filter((k) => !order.includes(k)),
+			...[...map.keys()].filter((k) => order.indexOf(k) === -1),
 		];
 		return "[" + keys.map((k) => `${k}:${map.get(k)}`).join(" ") + "]";
 	}
@@ -1686,13 +1687,12 @@ class AgentBoardSettingTab extends PluginSettingTab {
 		datalist.id = datalistId;
 		for (const file of this.app.vault.getFiles()) {
 			if (file.extension === "md") {
-				const opt = activeDocument.createElement("option");
+				const opt = datalist.createEl("option");
 				opt.value = file.path;
-				datalist.appendChild(opt);
 			}
 		}
 
-		const statusEl = containerEl.createEl("div", {
+		const statusEl = containerEl.createDiv({
 			cls: "todo-settings-status",
 		});
 
