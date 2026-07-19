@@ -43,6 +43,9 @@ Gotchas:
 - **Let CI own the release.** Don't also create a release manually for the same tag — `gh release create` fails on a duplicate.
 - **`minAppVersion` must cover every API used.** The `no-unsupported-api` review check compares against it; e.g. `Workspace.revealLeaf` returns a Promise only `@since 1.7.2`, which set the current floor. Check an API's `@since` in `node_modules/obsidian/obsidian.d.ts` before using it.
 - **The community review's CSS check is pinned to Obsidian 1.4.5**, independent of `minAppVersion` — CSS features must clear that baseline (e.g. avoid `text-decoration` shorthand; `color-mix` is fine).
+- **DOM creation must use Obsidian's helpers** — the review flags `document.createElement` *and* `createEl("div"|"span")`: use `createDiv`/`createSpan` (methods on any element, or the globals for detached nodes) and `createEl` only for other tags.
+- **No `Array.prototype.includes`** — tsconfig `lib` is `["ES6", "DOM"]`, so it's error-typed and trips `no-unsafe-call`; use `indexOf(...) === -1`. (String `.includes` is ES2015 and fine.)
+- **Deferred review warning**: the declarative settings API (`getSettingDefinitions` on `PluginSettingTab`, Obsidian 1.13+) is not adopted — it isn't in the installed typings and would raise `minAppVersion` to 1.13.0. Revisit when bumping the obsidian package.
 - Release assets are the **three files at the repo root** (`main.js` is gitignored but built in CI); never the auto-generated source zip.
 
 ## Todo file format
