@@ -4,7 +4,7 @@ Key release notes and insights for AgentBoard.
 
 ---
 
-## 2026-07-19 — Subtasks & the agentboard-sync companion skill
+## 2026-07-19 — v2.1.0 (Subtasks & the agentboard-sync companion skill)
 
 Adds one level of task nesting to the board and publishes the long-promised companion skill in-repo.
 

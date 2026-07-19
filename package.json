@@ -1,13 +1,18 @@
 {
   "name": "obsidian-agent-board",
-  "version": "2.0.2",
+  "version": "2.1.0",
   "description": "Visualize your markdown todo list as a Google Tasks-style board",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production"
   },
-  "keywords": ["obsidian", "todo", "board", "tasks"],
+  "keywords": [
+    "obsidian",
+    "todo",
+    "board",
+    "tasks"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {

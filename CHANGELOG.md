@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-07-19
+
 ### Added
 
 - Subtasks: indented `- [ ]` lines under a task now render as nested subtasks on the board, under their parent
